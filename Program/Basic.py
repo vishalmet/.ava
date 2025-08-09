@@ -1,17 +1,3 @@
-#######################################
-# IMPORTS
-#######################################
-
-from strings_with_arrows import *
-
-import string
-import os
-import math
-import json
-import time
-
-from web3 import Web3
-from eth_account import Account
 
 
 #######################################
@@ -101,7 +87,6 @@ class RTError(Error):
 
     return 'Traceback (most recent call last):\n' + result
 
-    
 #######################################
 # POSITION
 #######################################
@@ -393,7 +378,6 @@ class Lexer:
       self.advance()
 
     self.advance()
-
 
 #######################################
 # NODES
@@ -1189,6 +1173,37 @@ class Parser:
     self.advance()
     arg_name_toks = []
 
+    if self.current_tok.type == TT_IDENTIFIER:
+      arg_name_toks.append(self.current_tok)
+      res.register_advancement()
+      self.advance()
+      
+      while self.current_tok.type == TT_COMMA:
+        res.register_advancement()
+        self.advance()
+
+        if self.current_tok.type != TT_IDENTIFIER:
+          return res.failure(InvalidSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end,
+            f"Expected identifier"
+          ))
+
+        arg_name_toks.append(self.current_tok)
+        res.register_advancement()
+        self.advance()
+      
+      if self.current_tok.type != TT_RPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected ',' or ')'"
+        ))
+    else:
+      if self.current_tok.type != TT_RPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected identifier or ')'"
+        ))
+
     res.register_advancement()
     self.advance()
 
@@ -1236,6 +1251,24 @@ class Parser:
 
   ###################################
 
+  def bin_op(self, func_a, ops, func_b=None):
+    if func_b == None:
+      func_b = func_a
+    
+    res = ParseResult()
+    left = res.register(func_a())
+    if res.error: return res
+
+    while self.current_tok.type in ops or (self.current_tok.type, self.current_tok.value) in ops:
+      op_tok = self.current_tok
+      res.register_advancement()
+      self.advance()
+      right = res.register(func_b())
+      if res.error: return res
+      left = BinOpNode(left, op_tok, right)
+
+    return res.success(left)
+
 #######################################
 # RUNTIME RESULT
 #######################################
@@ -1256,5 +1289,3 @@ class RTResult:
     self.func_return_value = res.func_return_value
     self.loop_should_continue = res.loop_should_continue
     self.loop_should_break = res.loop_should_break
-    return res.value
-
