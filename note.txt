@@ -74,3 +74,8 @@ result = deploy_contract_from_source(
   private_key="af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6",
   constructor_args=[5],   # <-- required arg
 )
+
+
+
+[ava] » deploy("asd.ava", "af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "gsk_dQZTDLBuskjxOVYnpPfCWGdyb3FYrhe9nYaDSg6DS4wDKmaWNan 
+R")
