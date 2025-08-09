@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { X, Copy, Download } from "lucide-react"
+import { X, Copy, Download, Check } from "lucide-react"
 import SyntaxHighlighter from "./syntax-highlighter"
 import CodeSuggestions from "./code-suggestions"
 
@@ -34,6 +34,7 @@ export default function PopupEditor({
   const [scrollTop, setScrollTop] = useState(0)
   const [scrollLeft, setScrollLeft] = useState(0)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showCopied, setShowCopied] = useState(false)
   const [cursorPosition, setCursorPosition] = useState(0)
   const [suggestionPosition, setSuggestionPosition] = useState({ x: 0, y: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -139,6 +140,8 @@ export default function PopupEditor({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(value)
+    setShowCopied(true)
+    setTimeout(() => setShowCopied(false), 2000)
     if (onCopy) onCopy()
   }
 
@@ -203,8 +206,17 @@ export default function PopupEditor({
               <div className="flex items-center gap-2">
                 {value && (
                   <>
-                    <Button variant="ghost" size="sm" onClick={handleCopy}>
-                      <Copy className="h-4 w-4" />
+                    <Button variant="ghost" size="sm" onClick={handleCopy} className="relative">
+                      {showCopied ? (
+                        <>
+                          <Check className="h-4 w-4 text-green-500" />
+                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                            Copied!
+                          </span>
+                        </>
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
                     </Button>
                     {onDownload && (
                       <Button variant="ghost" size="sm" onClick={handleDownload}>

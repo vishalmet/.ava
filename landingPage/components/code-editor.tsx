@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Copy, Download, ExternalLink } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Copy, Download, ExternalLink, Check } from "lucide-react"
 import SyntaxHighlighter from "./syntax-highlighter"
 import PopupEditor from "./popup-editor"
 
@@ -17,6 +18,9 @@ interface CodeEditorProps {
   onCopy?: () => void
   onDownload?: () => void
   downloadExtension?: string
+  showLanguageSelector?: boolean
+  languageOptions?: Array<{ value: string; label: string; extension: string }>
+  onLanguageChange?: (language: string) => void
 }
 
 export default function CodeEditor({
@@ -29,10 +33,14 @@ export default function CodeEditor({
   badge,
   onCopy,
   onDownload,
-  downloadExtension
+  downloadExtension,
+  showLanguageSelector = false,
+  languageOptions = [],
+  onLanguageChange
 }: CodeEditorProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [showCopied, setShowCopied] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const [scrollLeft, setScrollLeft] = useState(0)
@@ -60,6 +68,8 @@ export default function CodeEditor({
 
   const handleCopy = () => {
     navigator.clipboard.writeText(value)
+    setShowCopied(true)
+    setTimeout(() => setShowCopied(false), 2000)
     if (onCopy) onCopy()
   }
 
@@ -93,6 +103,20 @@ export default function CodeEditor({
           <h3 className="font-semibold text-lg">{title}</h3>
         </div>
         <div className="flex items-center gap-2">
+          {showLanguageSelector && languageOptions.length > 0 && (
+            <Select value={language} onValueChange={onLanguageChange}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {languageOptions.map((lang) => (
+                  <SelectItem key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <span className="text-xs px-2 py-1 bg-neutral-100 rounded-md font-medium">
             {badge}
           </span>
@@ -101,8 +125,17 @@ export default function CodeEditor({
               <ExternalLink className="h-4 w-4" />
             </Button>
             {value && (
-              <Button variant="ghost" size="sm" onClick={handleCopy} title="Copy code">
-                <Copy className="h-4 w-4" />
+              <Button variant="ghost" size="sm" onClick={handleCopy} title="Copy code" className="relative">
+                {showCopied ? (
+                  <>
+                    <Check className="h-4 w-4 text-green-500" />
+                    <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-green-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                      Copied!
+                    </span>
+                  </>
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
               </Button>
             )}
             {value && onDownload && (

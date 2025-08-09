@@ -239,21 +239,6 @@ impl AvaContract {
 
           {/* Output Side - Converted Code */}
           <div className="bg-white border rounded-lg p-6 shadow-sm">
-            <div className="flex items-center gap-4 mb-4">
-              <h3 className="font-semibold text-lg">Target Language</h3>
-              <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {languages.map((lang) => (
-                    <SelectItem key={lang.value} value={lang.value}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <CodeEditor
               value={convertedCode}
               language={targetLanguage as "sol" | "cairo" | "rs"}
@@ -261,6 +246,9 @@ impl AvaContract {
               badge="Output"
               placeholder="Converted code will appear here..."
               readOnly
+              showLanguageSelector={true}
+              languageOptions={languages}
+              onLanguageChange={setTargetLanguage}
               onCopy={() => copyToClipboard(convertedCode)}
               onDownload={() => downloadCode(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')}
               downloadExtension={languages.find(l => l.value === targetLanguage)?.extension}
