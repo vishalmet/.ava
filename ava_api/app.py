@@ -3,7 +3,7 @@ import sys
 import json
 import io
 import zipfile
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 from flask import Flask, request, jsonify, Response, send_file, redirect
 from flask_cors import CORS
@@ -18,6 +18,7 @@ from llm.llm_core import (
     convert_code_to_language,
     convert_code_to_project_manifest,
 )
+from web3_service.web3_core import deploy_contract_from_source
 
 
 app = Flask(__name__)
@@ -236,6 +237,58 @@ def _build_openapi() -> Dict[str, Any]:
                         "500": {"description": "ZIP generation failed"}
                     }
                 }
+            },
+            "/deploy-contract": {
+                "post": {
+                    "summary": "Compile and deploy a Solidity contract from source",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "solidity_source": {"type": "string"},
+                                        "private_key": {"type": "string"},
+                                        "rpc_url": {"type": "string"},
+                                        "contract_name": {"type": "string"},
+                                        "constructor_args": {"type": "array", "items": {}}
+                                    },
+                                    "required": ["solidity_source", "private_key"]
+                                },
+                                "example": {
+                                    "solidity_source": "pragma solidity ^0.8.20; contract C { uint x; constructor(uint _x){x=_x;} }",
+                                    "private_key": "0x...",
+                                    "rpc_url": "https://eth-sepolia.public.blastapi.io",
+                                    "contract_name": "C",
+                                    "constructor_args": [42]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Deployment info",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "address": {"type": "string"},
+                                            "abi": {"type": "array", "items": {"type": "object"}},
+                                            "txHash": {"type": "string"},
+                                            "contractName": {"type": "string"},
+                                            "chainId": {"type": "integer"},
+                                            "solcVersion": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {"description": "Invalid payload"},
+                        "500": {"description": "Deployment failed"}
+                    }
+                }
             }
         }
     }
@@ -443,6 +496,47 @@ def api_convert_project_zip() -> Response:
         )
     except Exception as e:
         return _json_error(f"Project ZIP generation failed: {e}", 500)
+
+
+# Default RPC when none is provided by the client
+DEFAULT_EVM_RPC = "https://eth-sepolia.public.blastapi.io"
+
+
+@app.post('/deploy-contract')
+def api_deploy_contract() -> Response:
+    try:
+        payload: Dict[str, Any] = request.get_json(force=True, silent=False) or {}
+    except Exception:
+        return _json_error("Invalid JSON payload", 400)
+
+    solidity_source = payload.get('solidity_source')
+    private_key = payload.get('private_key')
+    rpc_url = payload.get('rpc_url') or DEFAULT_EVM_RPC
+    contract_name = payload.get('contract_name')
+    constructor_args = payload.get('constructor_args')
+
+    if not isinstance(solidity_source, str) or not solidity_source.strip():
+        return _json_error("'solidity_source' is required (string)")
+    if not isinstance(private_key, str) or not private_key.strip():
+        return _json_error("'private_key' is required (string)")
+    if contract_name is not None and not isinstance(contract_name, str):
+        return _json_error("'contract_name' must be a string if provided")
+    if constructor_args is None:
+        constructor_args = []
+    if not isinstance(constructor_args, list):
+        return _json_error("'constructor_args' must be an array if provided")
+
+    try:
+        info = deploy_contract_from_source(
+            solidity_source=solidity_source,
+            rpc_url=rpc_url,
+            private_key=private_key,
+            contract_name=contract_name,
+            constructor_args=constructor_args,
+        )
+        return jsonify(info), 200
+    except Exception as e:
+        return _json_error(f"Deployment failed: {e}", 500)
 
 
 # Note on storage behavior:
