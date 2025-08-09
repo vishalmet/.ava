@@ -116,7 +116,7 @@ export default function Page() {
                     backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
                   }}
                 >
-                  ava Converter
+                  .ava Converter
                 </Button>
               </Link>
             </motion.div>
