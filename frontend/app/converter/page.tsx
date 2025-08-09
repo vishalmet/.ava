@@ -1,13 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload, Key, Loader2, Edit3, Eye, EyeOff } from "lucide-react"
 import { brand } from "@/lib/brand"
 import CodeEditor from "@/components/code-editor"
 
@@ -28,12 +31,27 @@ function getBalance(account: address) -> u64 {
   const [convertedCode, setConvertedCode] = useState("")
   const [isDeploying, setIsDeploying] = useState(false)
   const [deploymentStatus, setDeploymentStatus] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [apiKey, setApiKey] = useState("")
+  const [isConverting, setIsConverting] = useState(false)
+  const [conversionError, setConversionError] = useState("")
+  const [hasStoredKey, setHasStoredKey] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const languages = [
-    { value: "sol", label: "Solidity (.sol)", extension: ".sol" },
-    { value: "cairo", label: "Cairo (.cairo)", extension: ".cairo" },
-    { value: "rs", label: "Rust (.rs)", extension: ".rs" }
+    { value: "sol", label: "Solidity (.sol)", extension: ".sol", apiValue: "solidity" },
+    { value: "cairo", label: "Cairo (.cairo)", extension: ".cairo", apiValue: "cairo" },
+    { value: "rs", label: "Rust (.rs)", extension: ".rs", apiValue: "rust" }
   ]
+
+  // Check localStorage for API key on component mount
+  useEffect(() => {
+    const storedApiKey = localStorage.getItem('say_my_name')
+    if (storedApiKey) {
+      setApiKey(storedApiKey)
+      setHasStoredKey(true)
+    }
+  }, [])
 
   const mockConversions = {
     sol: `// Converted to Solidity
@@ -130,8 +148,88 @@ impl AvaContract {
 }`
   }
 
-  const handleConvert = () => {
-    setConvertedCode(mockConversions[targetLanguage as keyof typeof mockConversions])
+  const handleConvert = async () => {
+    // Clear any previous errors
+    setConversionError("")
+    
+    // Check if API key exists in localStorage
+    const storedApiKey = localStorage.getItem('say_my_name')
+    
+    if (!storedApiKey && !apiKey) {
+      // Open modal to ask for API key
+      setIsModalOpen(true)
+      setShowApiKey(false) // Reset to hidden when opening modal
+      return
+    }
+    
+    // Use stored API key or current apiKey state
+    const keyToUse = storedApiKey || apiKey
+    await convertCode(keyToUse)
+  }
+
+  const convertCode = async (apiKeyToUse: string) => {
+    setIsConverting(true)
+    setConversionError("")
+    
+    try {
+      const targetLang = languages.find(l => l.value === targetLanguage)?.apiValue || "solidity"
+      
+      const response = await fetch('https://ava-api.vercel.app/convert-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          api_key: apiKeyToUse,
+          source_code: `<${avaCode}>`,
+          target_language: targetLang
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setConvertedCode(data.code || data.converted_code || data.result || "Conversion completed but no code returned")
+      
+    } catch (error) {
+      console.error('Conversion error:', error)
+      setConversionError(error instanceof Error ? error.message : 'Failed to convert code. Please try again.')
+      
+      // If error is related to API key, clear it from storage and show modal
+      if (error instanceof Error && (error.message.includes('API key') || error.message.includes('401'))) {
+        localStorage.removeItem('say_my_name')
+        setApiKey("")
+        setHasStoredKey(false)
+        setIsModalOpen(true)
+      }
+    } finally {
+      setIsConverting(false)
+    }
+  }
+
+  const handleApiKeySubmit = async () => {
+    if (!apiKey.trim()) {
+      setConversionError("Please enter a valid API key")
+      return
+    }
+
+    // Save API key to localStorage
+    localStorage.setItem('say_my_name', apiKey.trim())
+    setHasStoredKey(true)
+    setIsModalOpen(false)
+    
+    // Start conversion
+    await convertCode(apiKey.trim())
+  }
+
+  const editKey = () => {
+    // Open modal to edit existing key
+    setIsModalOpen(true)
+    setConversionError("")
+    setShowApiKey(false) // Reset to hidden when opening modal
   }
 
   // Extract contract name from code for filename
@@ -219,13 +317,28 @@ impl AvaContract {
               <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">.ava</span>
             </Link>
             
-            <Link 
-              href="/" 
-              className="flex items-center gap-2 text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
-            </Link>
+            <div className="flex items-center gap-4">
+              {hasStoredKey && (
+                <Button
+                  onClick={editKey}
+                  size="sm"
+                  variant="outline"
+                  disabled={isConverting}
+                  className="border font-medium hover:bg-neutral-50 transition-all duration-300"
+                >
+                  <Edit3 className="mr-2 h-3 w-3" />
+                  Edit Key
+                </Button>
+              )}
+              
+              <Link 
+                href="/" 
+                className="flex items-center gap-2 text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Home
+              </Link>
+            </div>
           </div>
         </div>
       </motion.header>
@@ -312,13 +425,23 @@ impl AvaContract {
             <Button
               onClick={handleConvert}
               size="lg"
+              disabled={isConverting}
               className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
               style={{
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              <ArrowRight className="mr-2 h-4 w-4" />
-              Convert to {languages.find(l => l.value === targetLanguage)?.label}
+              {isConverting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Converting...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  Convert to {languages.find(l => l.value === targetLanguage)?.label}
+                </>
+              )}
             </Button>
 
             {convertedCode && (
@@ -371,8 +494,121 @@ impl AvaContract {
               {deploymentStatus}
             </motion.div>
           )}
+
+          {/* Conversion Error */}
+          {conversionError && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-red-50 text-red-700 border border-red-200"
+            >
+              {conversionError}
+            </motion.div>
+          )}
         </motion.div>
       </div>
+
+      {/* API Key Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {hasStoredKey ? (
+                <>
+                  <Edit3 className="h-5 w-5 text-rose-500" />
+                  Edit Groq API Key
+                </>
+              ) : (
+                <>
+                  <Key className="h-5 w-5 text-rose-500" />
+                  Groq API Key Required
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {hasStoredKey 
+                ? "Update your Groq API key. The new key will be securely stored locally and replace the existing one."
+                : "To convert your .ava code, please enter your Groq API key. It will be securely stored locally for future use."
+              }
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="api-key">Groq API Key</Label>
+              <div className="relative">
+                <Input
+                  id="api-key"
+                  type={showApiKey ? "text" : "password"}
+                  placeholder="sk-..."
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleApiKeySubmit()
+                    }
+                  }}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOff className="h-4 w-4 text-neutral-500" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-neutral-500" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-neutral-500">
+                Get your API key from{' '}
+                <a 
+                  href="https://console.groq.com/keys" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-rose-500 hover:text-rose-600 underline"
+                >
+                  Groq Console
+                </a>
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setIsModalOpen(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleApiKeySubmit}
+                disabled={!apiKey.trim() || isConverting}
+                className="flex-1 text-white"
+                style={{
+                  backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
+                }}
+              >
+                {isConverting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Converting...
+                  </>
+                ) : hasStoredKey ? (
+                  'Update & Convert'
+                ) : (
+                  'Save & Convert'
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
