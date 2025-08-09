@@ -1,2088 +1,2965 @@
-import _ast
-import _typeshed
+#######################################
+# IMPORTS
+#######################################
+
+from strings_with_arrows import *
+
+import string
+import os
+import math
+import json
+import time
 import sys
-import types
-from _collections_abc import dict_items, dict_keys, dict_values
-from _typeshed import (
-    AnyStr_co,
-    ConvertibleToFloat,
-    ConvertibleToInt,
-    FileDescriptorOrPath,
-    OpenBinaryMode,
-    OpenBinaryModeReading,
-    OpenBinaryModeUpdating,
-    OpenBinaryModeWriting,
-    OpenTextMode,
-    ReadableBuffer,
-    SupportsAdd,
-    SupportsAiter,
-    SupportsAnext,
-    SupportsDivMod,
-    SupportsFlush,
-    SupportsIter,
-    SupportsKeysAndGetItem,
-    SupportsLenAndGetItem,
-    SupportsNext,
-    SupportsRAdd,
-    SupportsRDivMod,
-    SupportsRichComparison,
-    SupportsRichComparisonT,
-    SupportsWrite,
-)
-from collections.abc import Awaitable, Callable, Iterable, Iterator, MutableSet, Reversible, Set as AbstractSet, Sized
-from io import BufferedRandom, BufferedReader, BufferedWriter, FileIO, TextIOWrapper
-from types import CellType, CodeType, TracebackType
+import io
 
-# mypy crashes if any of {ByteString, Sequence, MutableSequence, Mapping, MutableMapping} are imported from collections.abc in builtins.pyi
-from typing import (  # noqa: Y022
-    IO,
-    Any,
-    BinaryIO,
-    ClassVar,
-    Generic,
-    Mapping,
-    MutableMapping,
-    MutableSequence,
-    NoReturn,
-    Protocol,
-    Sequence,
-    SupportsAbs,
-    SupportsBytes,
-    SupportsComplex,
-    SupportsFloat,
-    SupportsIndex,
-    TypeVar,
-    final,
-    overload,
-    type_check_only,
-)
 
-# we can't import `Literal` from typing or mypy crashes: see #11247
-from typing_extensions import (  # noqa: Y023
-    Concatenate,
-    Literal,
-    LiteralString,
-    ParamSpec,
-    Self,
-    TypeAlias,
-    TypeGuard,
-    TypeIs,
-    TypeVarTuple,
-    deprecated,
-)
+from web3 import Web3
+from eth_account import Account
+import hashlib
+import ast
+import re
 
-if sys.version_info >= (3, 9):
-    from types import GenericAlias
+#######################################
+# TRACE / SERIALIZATION HELPERS
+#######################################
 
-_T = TypeVar("_T")
-_I = TypeVar("_I", default=int)
-_T_co = TypeVar("_T_co", covariant=True)
-_T_contra = TypeVar("_T_contra", contravariant=True)
-_R_co = TypeVar("_R_co", covariant=True)
-_KT = TypeVar("_KT")
-_VT = TypeVar("_VT")
-_S = TypeVar("_S")
-_T1 = TypeVar("_T1")
-_T2 = TypeVar("_T2")
-_T3 = TypeVar("_T3")
-_T4 = TypeVar("_T4")
-_T5 = TypeVar("_T5")
-_SupportsNextT = TypeVar("_SupportsNextT", bound=SupportsNext[Any], covariant=True)
-_SupportsAnextT = TypeVar("_SupportsAnextT", bound=SupportsAnext[Any], covariant=True)
-_AwaitableT = TypeVar("_AwaitableT", bound=Awaitable[Any])
-_AwaitableT_co = TypeVar("_AwaitableT_co", bound=Awaitable[Any], covariant=True)
-_P = ParamSpec("_P")
+class TraceCollector:
+  def __init__(self, file_name: str, source_text: str):
+    self.file_name = file_name
+    self.source_text = source_text
+    self.start_time = time.time()
+    self.end_time = None
+    self.elapsed = None
+    self.lexer = {
+      'tokens': []
+    }
+    self.parser = {
+      'root_repr': None
+    }
+    self.execution = {
+      'events': [],  # chronological list of events
+      'final_value': None,
+      'stdout': ''
+    }
+    self.symbols_end = {}
+    self.web3 = {}
+    self._next_event_id = 1
 
-class object:
-    __doc__: str | None
-    __dict__: dict[str, Any]
-    __module__: str
-    __annotations__: dict[str, Any]
-    @property
-    def __class__(self) -> type[Self]: ...
-    @__class__.setter
-    def __class__(self, type: type[object], /) -> None: ...
-    def __init__(self) -> None: ...
-    def __new__(cls) -> Self: ...
-    # N.B. `object.__setattr__` and `object.__delattr__` are heavily special-cased by type checkers.
-    # Overriding them in subclasses has different semantics, even if the override has an identical signature.
-    def __setattr__(self, name: str, value: Any, /) -> None: ...
-    def __delattr__(self, name: str, /) -> None: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __str__(self) -> str: ...  # noqa: Y029
-    def __repr__(self) -> str: ...  # noqa: Y029
-    def __hash__(self) -> int: ...
-    def __format__(self, format_spec: str, /) -> str: ...
-    def __getattribute__(self, name: str, /) -> Any: ...
-    def __sizeof__(self) -> int: ...
-    # return type of pickle methods is rather hard to express in the current type system
-    # see #6661 and https://docs.python.org/3/library/pickle.html#object.__reduce__
-    def __reduce__(self) -> str | tuple[Any, ...]: ...
-    def __reduce_ex__(self, protocol: SupportsIndex, /) -> str | tuple[Any, ...]: ...
-    if sys.version_info >= (3, 11):
-        def __getstate__(self) -> object: ...
+  def add_token(self, tok):
+    def pos_to_dict(p):
+      return None if not p else {
+        'idx': p.idx,
+        'line': p.ln,
+        'col': p.col
+      }
+    self.lexer['tokens'].append({
+      'type': tok.type,
+      'value': tok.value,
+      'pos_start': pos_to_dict(getattr(tok, 'pos_start', None)),
+      'pos_end': pos_to_dict(getattr(tok, 'pos_end', None))
+    })
 
-    def __dir__(self) -> Iterable[str]: ...
-    def __init_subclass__(cls) -> None: ...
-    @classmethod
-    def __subclasshook__(cls, subclass: type, /) -> bool: ...
+  def add_event(self, kind: str, data: dict):
+    event = {
+      'id': self._next_event_id,
+      'kind': kind,
+      'data': data
+    }
+    self.execution['events'].append(event)
+    self._next_event_id += 1
 
-class staticmethod(Generic[_P, _R_co]):
-    @property
-    def __func__(self) -> Callable[_P, _R_co]: ...
-    @property
-    def __isabstractmethod__(self) -> bool: ...
-    def __init__(self, f: Callable[_P, _R_co], /) -> None: ...
-    @overload
-    def __get__(self, instance: None, owner: type, /) -> Callable[_P, _R_co]: ...
-    @overload
-    def __get__(self, instance: _T, owner: type[_T] | None = None, /) -> Callable[_P, _R_co]: ...
-    if sys.version_info >= (3, 10):
-        __name__: str
-        __qualname__: str
-        @property
-        def __wrapped__(self) -> Callable[_P, _R_co]: ...
-        def __call__(self, *args: _P.args, **kwargs: _P.kwargs) -> _R_co: ...
+  def finish(self, symbols_snapshot: dict, final_value):
+    self.end_time = time.time()
+    self.elapsed = self.end_time - self.start_time
+    self.symbols_end = symbols_snapshot or {}
+    self.execution['final_value'] = final_value
 
-class classmethod(Generic[_T, _P, _R_co]):
-    @property
-    def __func__(self) -> Callable[Concatenate[type[_T], _P], _R_co]: ...
-    @property
-    def __isabstractmethod__(self) -> bool: ...
-    def __init__(self, f: Callable[Concatenate[type[_T], _P], _R_co], /) -> None: ...
-    @overload
-    def __get__(self, instance: _T, owner: type[_T] | None = None, /) -> Callable[_P, _R_co]: ...
-    @overload
-    def __get__(self, instance: None, owner: type[_T], /) -> Callable[_P, _R_co]: ...
-    if sys.version_info >= (3, 10):
-        __name__: str
-        __qualname__: str
-        @property
-        def __wrapped__(self) -> Callable[Concatenate[type[_T], _P], _R_co]: ...
+def value_to_python(v):
+  # Convert runtime Values to plain Python types for JSON serialization
+  try:
+    from numbers import Number as PyNumber
+  except Exception:
+    PyNumber = (int, float)
+  if v is None:
+    return None
+  # Our Number, String, List types
+  if isinstance(v, Number):
+    return v.value
+  if isinstance(v, String):
+    return v.value
+  if isinstance(v, List):
+    return [value_to_python(e) for e in v.elements]
+  if isinstance(v, Function):
+    return f"<function {v.name}>"
+  if isinstance(v, BuiltInFunction):
+    return f"<built-in function {v.name}>"
+  # Fallback: try to return primitive or string
+  if isinstance(v, PyNumber) or isinstance(v, str) or isinstance(v, list) or isinstance(v, dict):
+    return v
+  try:
+    return str(v)
+  except Exception:
+    return '<unserializable>'
 
-class type:
-    # object.__base__ is None. Otherwise, it would be a type.
-    @property
-    def __base__(self) -> type | None: ...
-    __bases__: tuple[type, ...]
-    @property
-    def __basicsize__(self) -> int: ...
-    @property
-    def __dict__(self) -> types.MappingProxyType[str, Any]: ...  # type: ignore[override]
-    @property
-    def __dictoffset__(self) -> int: ...
-    @property
-    def __flags__(self) -> int: ...
-    @property
-    def __itemsize__(self) -> int: ...
-    __module__: str
-    @property
-    def __mro__(self) -> tuple[type, ...]: ...
-    __name__: str
-    __qualname__: str
-    @property
-    def __text_signature__(self) -> str | None: ...
-    @property
-    def __weakrefoffset__(self) -> int: ...
-    @overload
-    def __init__(self, o: object, /) -> None: ...
-    @overload
-    def __init__(self, name: str, bases: tuple[type, ...], dict: dict[str, Any], /, **kwds: Any) -> None: ...
-    @overload
-    def __new__(cls, o: object, /) -> type: ...
-    @overload
-    def __new__(
-        cls: type[_typeshed.Self], name: str, bases: tuple[type, ...], namespace: dict[str, Any], /, **kwds: Any
-    ) -> _typeshed.Self: ...
-    def __call__(self, *args: Any, **kwds: Any) -> Any: ...
-    def __subclasses__(self: _typeshed.Self) -> list[_typeshed.Self]: ...
-    # Note: the documentation doesn't specify what the return type is, the standard
-    # implementation seems to be returning a list.
-    def mro(self) -> list[type]: ...
-    def __instancecheck__(self, instance: Any, /) -> bool: ...
-    def __subclasscheck__(self, subclass: type, /) -> bool: ...
-    @classmethod
-    def __prepare__(metacls, name: str, bases: tuple[type, ...], /, **kwds: Any) -> MutableMapping[str, object]: ...
-    if sys.version_info >= (3, 10):
-        def __or__(self, value: Any, /) -> types.UnionType: ...
-        def __ror__(self, value: Any, /) -> types.UnionType: ...
-    if sys.version_info >= (3, 12):
-        __type_params__: tuple[TypeVar | ParamSpec | TypeVarTuple, ...]
+def error_to_dict(err):
+  if err is None:
+    return None
+  def pos_to_dict(p):
+    return None if not p else {
+      'idx': p.idx,
+      'line': p.ln,
+      'col': p.col,
+      'file': p.fn
+    }
+  return {
+    'name': getattr(err, 'error_name', err.__class__.__name__),
+    'details': getattr(err, 'details', ''),
+    'pos_start': pos_to_dict(getattr(err, 'pos_start', None)),
+    'pos_end': pos_to_dict(getattr(err, 'pos_end', None)),
+    'traceback_str': err.as_string() if hasattr(err, 'as_string') else str(err)
+  }
 
-class super:
-    @overload
-    def __init__(self, t: Any, obj: Any, /) -> None: ...
-    @overload
-    def __init__(self, t: Any, /) -> None: ...
-    @overload
-    def __init__(self) -> None: ...
 
-_PositiveInteger: TypeAlias = Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-_NegativeInteger: TypeAlias = Literal[-1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13, -14, -15, -16, -17, -18, -19, -20]
-_LiteralInteger = _PositiveInteger | _NegativeInteger | Literal[0]  # noqa: Y026  # TODO: Use TypeAlias once mypy bugs are fixed
+#######################################
+# CONSTANTS
+#######################################
 
-class int:
-    @overload
-    def __new__(cls, x: ConvertibleToInt = ..., /) -> Self: ...
-    @overload
-    def __new__(cls, x: str | bytes | bytearray, /, base: SupportsIndex) -> Self: ...
-    def as_integer_ratio(self) -> tuple[int, Literal[1]]: ...
-    @property
-    def real(self) -> int: ...
-    @property
-    def imag(self) -> Literal[0]: ...
-    @property
-    def numerator(self) -> int: ...
-    @property
-    def denominator(self) -> Literal[1]: ...
-    def conjugate(self) -> int: ...
-    def bit_length(self) -> int: ...
-    if sys.version_info >= (3, 10):
-        def bit_count(self) -> int: ...
+DIGITS = '0123456789'
+LETTERS = string.ascii_letters
+LETTERS_DIGITS = LETTERS + DIGITS
+PYDATA = {}
+#-------------- Web3 --------------------
+PROVIDER = ""
+W3 =  ""
+CONTRACT_ADDRESS= '0xA35725FfEfebF41B667167D0fd124cd43b59CC09'
+CURRENT_PATH = os.getcwd()
+ABI_OF_CONTRACT = os.path.join(CURRENT_PATH, 'Solidity','new_contract_abi.json')
+PRIVATE_KEY = ""
+IS_WEB3 = False
+CURRENT_TRACE = None
+#-------------- PoW Auto ---------------
+POW_ALWAYS = False
+POW_BITS = 0
+POW_MAX_NONCE = 1000000
+#-------------- Terminal---------------
+def do_line():
+  SIZE = os.get_terminal_size()
+  COL = SIZE.columns
+  LINE = SIZE.lines
+  print("-"*COL)
 
-    if sys.version_info >= (3, 11):
-        def to_bytes(
-            self, length: SupportsIndex = 1, byteorder: Literal["little", "big"] = "big", *, signed: bool = False
-        ) -> bytes: ...
-        @classmethod
-        def from_bytes(
-            cls,
-            bytes: Iterable[SupportsIndex] | SupportsBytes | ReadableBuffer,
-            byteorder: Literal["little", "big"] = "big",
-            *,
-            signed: bool = False,
-        ) -> Self: ...
-    else:
-        def to_bytes(self, length: SupportsIndex, byteorder: Literal["little", "big"], *, signed: bool = False) -> bytes: ...
-        @classmethod
-        def from_bytes(
-            cls,
-            bytes: Iterable[SupportsIndex] | SupportsBytes | ReadableBuffer,
-            byteorder: Literal["little", "big"],
-            *,
-            signed: bool = False,
-        ) -> Self: ...
+def word_line(word):
+  SIZE = os.get_terminal_size()
+  COL = SIZE.columns
+  LINE = SIZE.lines
+  actual_col = COL - len(word)
+  halfofcol = actual_col / 2
+  print("-"*int(halfofcol) + word + "-"*int(halfofcol))
+#----------------- Error ---------------
+ErrorMsg = True
+PkErrorMsg = True
 
-    if sys.version_info >= (3, 12):
-        def is_integer(self) -> Literal[True]: ...
 
-    def __add__(self, value: int, /) -> int: ...
-    def __sub__(self, value: int, /) -> int: ...
-    def __mul__(self, value: int, /) -> int: ...
-    def __floordiv__(self, value: int, /) -> int: ...
-    def __truediv__(self, value: int, /) -> float: ...
-    def __mod__(self, value: int, /) -> int: ...
-    def __divmod__(self, value: int, /) -> tuple[int, int]: ...
-    def __radd__(self, value: int, /) -> int: ...
-    def __rsub__(self, value: int, /) -> int: ...
-    def __rmul__(self, value: int, /) -> int: ...
-    def __rfloordiv__(self, value: int, /) -> int: ...
-    def __rtruediv__(self, value: int, /) -> float: ...
-    def __rmod__(self, value: int, /) -> int: ...
-    def __rdivmod__(self, value: int, /) -> tuple[int, int]: ...
-    @overload
-    def __pow__(self, x: Literal[0], /) -> Literal[1]: ...
-    @overload
-    def __pow__(self, value: Literal[0], mod: None, /) -> Literal[1]: ...
-    @overload
-    def __pow__(self, value: _PositiveInteger, mod: None = None, /) -> int: ...
-    @overload
-    def __pow__(self, value: _NegativeInteger, mod: None = None, /) -> float: ...
-    # positive __value -> int; negative __value -> float
-    # return type must be Any as `int | float` causes too many false-positive errors
-    @overload
-    def __pow__(self, value: int, mod: None = None, /) -> Any: ...
-    @overload
-    def __pow__(self, value: int, mod: int, /) -> int: ...
-    def __rpow__(self, value: int, mod: int | None = None, /) -> Any: ...
-    def __and__(self, value: int, /) -> int: ...
-    def __or__(self, value: int, /) -> int: ...
-    def __xor__(self, value: int, /) -> int: ...
-    def __lshift__(self, value: int, /) -> int: ...
-    def __rshift__(self, value: int, /) -> int: ...
-    def __rand__(self, value: int, /) -> int: ...
-    def __ror__(self, value: int, /) -> int: ...
-    def __rxor__(self, value: int, /) -> int: ...
-    def __rlshift__(self, value: int, /) -> int: ...
-    def __rrshift__(self, value: int, /) -> int: ...
-    def __neg__(self) -> int: ...
-    def __pos__(self) -> int: ...
-    def __invert__(self) -> int: ...
-    def __trunc__(self) -> int: ...
-    def __ceil__(self) -> int: ...
-    def __floor__(self) -> int: ...
-    def __round__(self, ndigits: SupportsIndex = ..., /) -> int: ...
-    def __getnewargs__(self) -> tuple[int]: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __lt__(self, value: int, /) -> bool: ...
-    def __le__(self, value: int, /) -> bool: ...
-    def __gt__(self, value: int, /) -> bool: ...
-    def __ge__(self, value: int, /) -> bool: ...
-    def __float__(self) -> float: ...
-    def __int__(self) -> int: ...
-    def __abs__(self) -> int: ...
-    def __hash__(self) -> int: ...
-    def __bool__(self) -> bool: ...
-    def __index__(self) -> int: ...
+#######################################
+# ERRORS
+#######################################
 
-class float:
-    def __new__(cls, x: ConvertibleToFloat = ..., /) -> Self: ...
-    def as_integer_ratio(self) -> tuple[int, int]: ...
-    def hex(self) -> str: ...
-    def is_integer(self) -> bool: ...
-    @classmethod
-    def fromhex(cls, string: str, /) -> Self: ...
-    @property
-    def real(self) -> float: ...
-    @property
-    def imag(self) -> float: ...
-    def conjugate(self) -> float: ...
-    def __add__(self, value: float, /) -> float: ...
-    def __sub__(self, value: float, /) -> float: ...
-    def __mul__(self, value: float, /) -> float: ...
-    def __floordiv__(self, value: float, /) -> float: ...
-    def __truediv__(self, value: float, /) -> float: ...
-    def __mod__(self, value: float, /) -> float: ...
-    def __divmod__(self, value: float, /) -> tuple[float, float]: ...
-    @overload
-    def __pow__(self, value: int, mod: None = None, /) -> float: ...
-    # positive __value -> float; negative __value -> complex
-    # return type must be Any as `float | complex` causes too many false-positive errors
-    @overload
-    def __pow__(self, value: float, mod: None = None, /) -> Any: ...
-    def __radd__(self, value: float, /) -> float: ...
-    def __rsub__(self, value: float, /) -> float: ...
-    def __rmul__(self, value: float, /) -> float: ...
-    def __rfloordiv__(self, value: float, /) -> float: ...
-    def __rtruediv__(self, value: float, /) -> float: ...
-    def __rmod__(self, value: float, /) -> float: ...
-    def __rdivmod__(self, value: float, /) -> tuple[float, float]: ...
-    @overload
-    def __rpow__(self, value: _PositiveInteger, mod: None = None, /) -> float: ...
-    @overload
-    def __rpow__(self, value: _NegativeInteger, mod: None = None, /) -> complex: ...
-    # Returning `complex` for the general case gives too many false-positive errors.
-    @overload
-    def __rpow__(self, value: float, mod: None = None, /) -> Any: ...
-    def __getnewargs__(self) -> tuple[float]: ...
-    def __trunc__(self) -> int: ...
-    if sys.version_info >= (3, 9):
-        def __ceil__(self) -> int: ...
-        def __floor__(self) -> int: ...
+class Error:
+  def __init__(self, pos_start, pos_end, error_name, details):
+    self.pos_start = pos_start
+    self.pos_end = pos_end
+    self.error_name = error_name
+    self.details = details
+  
+  def as_string(self):
+    result  = f'{self.error_name}: {self.details}\n'
+    result += f'File {self.pos_start.fn}, line {self.pos_start.ln + 1}'
+    result += '\n\n' + string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+    return result
 
-    @overload
-    def __round__(self, ndigits: None = None, /) -> int: ...
-    @overload
-    def __round__(self, ndigits: SupportsIndex, /) -> float: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __lt__(self, value: float, /) -> bool: ...
-    def __le__(self, value: float, /) -> bool: ...
-    def __gt__(self, value: float, /) -> bool: ...
-    def __ge__(self, value: float, /) -> bool: ...
-    def __neg__(self) -> float: ...
-    def __pos__(self) -> float: ...
-    def __int__(self) -> int: ...
-    def __float__(self) -> float: ...
-    def __abs__(self) -> float: ...
-    def __hash__(self) -> int: ...
-    def __bool__(self) -> bool: ...
+class IllegalCharError(Error):
+  def __init__(self, pos_start, pos_end, details):
+    super().__init__(pos_start, pos_end, 'Illegal Character', details)
 
-class complex:
-    # Python doesn't currently accept SupportsComplex for the second argument
-    @overload
-    def __new__(
-        cls,
-        real: complex | SupportsComplex | SupportsFloat | SupportsIndex = ...,
-        imag: complex | SupportsFloat | SupportsIndex = ...,
-    ) -> Self: ...
-    @overload
-    def __new__(cls, real: str | SupportsComplex | SupportsFloat | SupportsIndex | complex) -> Self: ...
-    @property
-    def real(self) -> float: ...
-    @property
-    def imag(self) -> float: ...
-    def conjugate(self) -> complex: ...
-    def __add__(self, value: complex, /) -> complex: ...
-    def __sub__(self, value: complex, /) -> complex: ...
-    def __mul__(self, value: complex, /) -> complex: ...
-    def __pow__(self, value: complex, mod: None = None, /) -> complex: ...
-    def __truediv__(self, value: complex, /) -> complex: ...
-    def __radd__(self, value: complex, /) -> complex: ...
-    def __rsub__(self, value: complex, /) -> complex: ...
-    def __rmul__(self, value: complex, /) -> complex: ...
-    def __rpow__(self, value: complex, mod: None = None, /) -> complex: ...
-    def __rtruediv__(self, value: complex, /) -> complex: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __neg__(self) -> complex: ...
-    def __pos__(self) -> complex: ...
-    def __abs__(self) -> float: ...
-    def __hash__(self) -> int: ...
-    def __bool__(self) -> bool: ...
-    if sys.version_info >= (3, 11):
-        def __complex__(self) -> complex: ...
+class ExpectedCharError(Error):
+  def __init__(self, pos_start, pos_end, details):
+    super().__init__(pos_start, pos_end, 'Expected Character', details)
 
-class _FormatMapMapping(Protocol):
-    def __getitem__(self, key: str, /) -> Any: ...
+class InvalidSyntaxError(Error):
+  def __init__(self, pos_start, pos_end, details=''):
+    super().__init__(pos_start, pos_end, 'Invalid Syntax', details)
 
-class _TranslateTable(Protocol):
-    def __getitem__(self, key: int, /) -> str | int | None: ...
+class RTError(Error):
+  def __init__(self, pos_start, pos_end, details, context):
+    super().__init__(pos_start, pos_end, 'Runtime Error', details)
+    self.context = context
 
-class str(Sequence[str]):
-    @overload
-    def __new__(cls, object: object = ...) -> Self: ...
-    @overload
-    def __new__(cls, object: ReadableBuffer, encoding: str = ..., errors: str = ...) -> Self: ...
-    @overload
-    def capitalize(self: LiteralString) -> LiteralString: ...
-    @overload
-    def capitalize(self) -> str: ...  # type: ignore[misc]
-    @overload
-    def casefold(self: LiteralString) -> LiteralString: ...
-    @overload
-    def casefold(self) -> str: ...  # type: ignore[misc]
-    @overload
-    def center(self: LiteralString, width: SupportsIndex, fillchar: LiteralString = " ", /) -> LiteralString: ...
-    @overload
-    def center(self, width: SupportsIndex, fillchar: str = " ", /) -> str: ...  # type: ignore[misc]
-    def count(self, sub: str, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /) -> int: ...
-    def encode(self, encoding: str = "utf-8", errors: str = "strict") -> bytes: ...
-    def endswith(
-        self, suffix: str | tuple[str, ...], start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> bool: ...
-    @overload
-    def expandtabs(self: LiteralString, tabsize: SupportsIndex = 8) -> LiteralString: ...
-    @overload
-    def expandtabs(self, tabsize: SupportsIndex = 8) -> str: ...  # type: ignore[misc]
-    def find(self, sub: str, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /) -> int: ...
-    @overload
-    def format(self: LiteralString, *args: LiteralString, **kwargs: LiteralString) -> LiteralString: ...
-    @overload
-    def format(self, *args: object, **kwargs: object) -> str: ...
-    def format_map(self, mapping: _FormatMapMapping, /) -> str: ...
-    def index(self, sub: str, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /) -> int: ...
-    def isalnum(self) -> bool: ...
-    def isalpha(self) -> bool: ...
-    def isascii(self) -> bool: ...
-    def isdecimal(self) -> bool: ...
-    def isdigit(self) -> bool: ...
-    def isidentifier(self) -> bool: ...
-    def islower(self) -> bool: ...
-    def isnumeric(self) -> bool: ...
-    def isprintable(self) -> bool: ...
-    def isspace(self) -> bool: ...
-    def istitle(self) -> bool: ...
-    def isupper(self) -> bool: ...
-    @overload
-    def join(self: LiteralString, iterable: Iterable[LiteralString], /) -> LiteralString: ...
-    @overload
-    def join(self, iterable: Iterable[str], /) -> str: ...  # type: ignore[misc]
-    @overload
-    def ljust(self: LiteralString, width: SupportsIndex, fillchar: LiteralString = " ", /) -> LiteralString: ...
-    @overload
-    def ljust(self, width: SupportsIndex, fillchar: str = " ", /) -> str: ...  # type: ignore[misc]
-    @overload
-    def lower(self: LiteralString) -> LiteralString: ...
-    @overload
-    def lower(self) -> str: ...  # type: ignore[misc]
-    @overload
-    def lstrip(self: LiteralString, chars: LiteralString | None = None, /) -> LiteralString: ...
-    @overload
-    def lstrip(self, chars: str | None = None, /) -> str: ...  # type: ignore[misc]
-    @overload
-    def partition(self: LiteralString, sep: LiteralString, /) -> tuple[LiteralString, LiteralString, LiteralString]: ...
-    @overload
-    def partition(self, sep: str, /) -> tuple[str, str, str]: ...  # type: ignore[misc]
-    if sys.version_info >= (3, 13):
-        @overload
-        def replace(
-            self: LiteralString, old: LiteralString, new: LiteralString, /, count: SupportsIndex = -1
-        ) -> LiteralString: ...
-        @overload
-        def replace(self, old: str, new: str, /, count: SupportsIndex = -1) -> str: ...  # type: ignore[misc]
-    else:
-        @overload
-        def replace(
-            self: LiteralString, old: LiteralString, new: LiteralString, count: SupportsIndex = -1, /
-        ) -> LiteralString: ...
-        @overload
-        def replace(self, old: str, new: str, count: SupportsIndex = -1, /) -> str: ...  # type: ignore[misc]
-    if sys.version_info >= (3, 9):
-        @overload
-        def removeprefix(self: LiteralString, prefix: LiteralString, /) -> LiteralString: ...
-        @overload
-        def removeprefix(self, prefix: str, /) -> str: ...  # type: ignore[misc]
-        @overload
-        def removesuffix(self: LiteralString, suffix: LiteralString, /) -> LiteralString: ...
-        @overload
-        def removesuffix(self, suffix: str, /) -> str: ...  # type: ignore[misc]
+  def as_string(self):
+    result  = self.generate_traceback()
+    result += f'{self.error_name}: {self.details}'
+    result += '\n\n' + string_with_arrows(self.pos_start.ftxt, self.pos_start, self.pos_end)
+    return result
 
-    def rfind(self, sub: str, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /) -> int: ...
-    def rindex(self, sub: str, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /) -> int: ...
-    @overload
-    def rjust(self: LiteralString, width: SupportsIndex, fillchar: LiteralString = " ", /) -> LiteralString: ...
-    @overload
-    def rjust(self, width: SupportsIndex, fillchar: str = " ", /) -> str: ...  # type: ignore[misc]
-    @overload
-    def rpartition(self: LiteralString, sep: LiteralString, /) -> tuple[LiteralString, LiteralString, LiteralString]: ...
-    @overload
-    def rpartition(self, sep: str, /) -> tuple[str, str, str]: ...  # type: ignore[misc]
-    @overload
-    def rsplit(self: LiteralString, sep: LiteralString | None = None, maxsplit: SupportsIndex = -1) -> list[LiteralString]: ...
-    @overload
-    def rsplit(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[str]: ...  # type: ignore[misc]
-    @overload
-    def rstrip(self: LiteralString, chars: LiteralString | None = None, /) -> LiteralString: ...
-    @overload
-    def rstrip(self, chars: str | None = None, /) -> str: ...  # type: ignore[misc]
-    @overload
-    def split(self: LiteralString, sep: LiteralString | None = None, maxsplit: SupportsIndex = -1) -> list[LiteralString]: ...
-    @overload
-    def split(self, sep: str | None = None, maxsplit: SupportsIndex = -1) -> list[str]: ...  # type: ignore[misc]
-    @overload
-    def splitlines(self: LiteralString, keepends: bool = False) -> list[LiteralString]: ...
-    @overload
-    def splitlines(self, keepends: bool = False) -> list[str]: ...  # type: ignore[misc]
-    def startswith(
-        self, prefix: str | tuple[str, ...], start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> bool: ...
-    @overload
-    def strip(self: LiteralString, chars: LiteralString | None = None, /) -> LiteralString: ...
-    @overload
-    def strip(self, chars: str | None = None, /) -> str: ...  # type: ignore[misc]
-    @overload
-    def swapcase(self: LiteralString) -> LiteralString: ...
-    @overload
-    def swapcase(self) -> str: ...  # type: ignore[misc]
-    @overload
-    def title(self: LiteralString) -> LiteralString: ...
-    @overload
-    def title(self) -> str: ...  # type: ignore[misc]
-    def translate(self, table: _TranslateTable, /) -> str: ...
-    @overload
-    def upper(self: LiteralString) -> LiteralString: ...
-    @overload
-    def upper(self) -> str: ...  # type: ignore[misc]
-    @overload
-    def zfill(self: LiteralString, width: SupportsIndex, /) -> LiteralString: ...
-    @overload
-    def zfill(self, width: SupportsIndex, /) -> str: ...  # type: ignore[misc]
-    @staticmethod
-    @overload
-    def maketrans(x: dict[int, _T] | dict[str, _T] | dict[str | int, _T], /) -> dict[int, _T]: ...
-    @staticmethod
-    @overload
-    def maketrans(x: str, y: str, /) -> dict[int, int]: ...
-    @staticmethod
-    @overload
-    def maketrans(x: str, y: str, z: str, /) -> dict[int, int | None]: ...
-    @overload
-    def __add__(self: LiteralString, value: LiteralString, /) -> LiteralString: ...
-    @overload
-    def __add__(self, value: str, /) -> str: ...  # type: ignore[misc]
-    # Incompatible with Sequence.__contains__
-    def __contains__(self, key: str, /) -> bool: ...  # type: ignore[override]
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ge__(self, value: str, /) -> bool: ...
-    def __getitem__(self, key: SupportsIndex | slice, /) -> str: ...
-    def __gt__(self, value: str, /) -> bool: ...
-    def __hash__(self) -> int: ...
-    @overload
-    def __iter__(self: LiteralString) -> Iterator[LiteralString]: ...
-    @overload
-    def __iter__(self) -> Iterator[str]: ...  # type: ignore[misc]
-    def __le__(self, value: str, /) -> bool: ...
-    def __len__(self) -> int: ...
-    def __lt__(self, value: str, /) -> bool: ...
-    @overload
-    def __mod__(self: LiteralString, value: LiteralString | tuple[LiteralString, ...], /) -> LiteralString: ...
-    @overload
-    def __mod__(self, value: Any, /) -> str: ...
-    @overload
-    def __mul__(self: LiteralString, value: SupportsIndex, /) -> LiteralString: ...
-    @overload
-    def __mul__(self, value: SupportsIndex, /) -> str: ...  # type: ignore[misc]
-    def __ne__(self, value: object, /) -> bool: ...
-    @overload
-    def __rmul__(self: LiteralString, value: SupportsIndex, /) -> LiteralString: ...
-    @overload
-    def __rmul__(self, value: SupportsIndex, /) -> str: ...  # type: ignore[misc]
-    def __getnewargs__(self) -> tuple[str]: ...
+  def generate_traceback(self):
+    result = ''
+    pos = self.pos_start
+    ctx = self.context
 
-class bytes(Sequence[int]):
-    @overload
-    def __new__(cls, o: Iterable[SupportsIndex] | SupportsIndex | SupportsBytes | ReadableBuffer, /) -> Self: ...
-    @overload
-    def __new__(cls, string: str, /, encoding: str, errors: str = ...) -> Self: ...
-    @overload
-    def __new__(cls) -> Self: ...
-    def capitalize(self) -> bytes: ...
-    def center(self, width: SupportsIndex, fillchar: bytes = b" ", /) -> bytes: ...
-    def count(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def decode(self, encoding: str = "utf-8", errors: str = "strict") -> str: ...
-    def endswith(
-        self,
-        suffix: ReadableBuffer | tuple[ReadableBuffer, ...],
-        start: SupportsIndex | None = ...,
-        end: SupportsIndex | None = ...,
-        /,
-    ) -> bool: ...
-    def expandtabs(self, tabsize: SupportsIndex = 8) -> bytes: ...
-    def find(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def hex(self, sep: str | bytes = ..., bytes_per_sep: SupportsIndex = ...) -> str: ...
-    def index(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def isalnum(self) -> bool: ...
-    def isalpha(self) -> bool: ...
-    def isascii(self) -> bool: ...
-    def isdigit(self) -> bool: ...
-    def islower(self) -> bool: ...
-    def isspace(self) -> bool: ...
-    def istitle(self) -> bool: ...
-    def isupper(self) -> bool: ...
-    def join(self, iterable_of_bytes: Iterable[ReadableBuffer], /) -> bytes: ...
-    def ljust(self, width: SupportsIndex, fillchar: bytes | bytearray = b" ", /) -> bytes: ...
-    def lower(self) -> bytes: ...
-    def lstrip(self, bytes: ReadableBuffer | None = None, /) -> bytes: ...
-    def partition(self, sep: ReadableBuffer, /) -> tuple[bytes, bytes, bytes]: ...
-    def replace(self, old: ReadableBuffer, new: ReadableBuffer, count: SupportsIndex = -1, /) -> bytes: ...
-    if sys.version_info >= (3, 9):
-        def removeprefix(self, prefix: ReadableBuffer, /) -> bytes: ...
-        def removesuffix(self, suffix: ReadableBuffer, /) -> bytes: ...
+    while ctx:
+      result = f'  File {pos.fn}, line {str(pos.ln + 1)}, in {ctx.display_name}\n' + result
+      pos = ctx.parent_entry_pos
+      ctx = ctx.parent
 
-    def rfind(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def rindex(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def rjust(self, width: SupportsIndex, fillchar: bytes | bytearray = b" ", /) -> bytes: ...
-    def rpartition(self, sep: ReadableBuffer, /) -> tuple[bytes, bytes, bytes]: ...
-    def rsplit(self, sep: ReadableBuffer | None = None, maxsplit: SupportsIndex = -1) -> list[bytes]: ...
-    def rstrip(self, bytes: ReadableBuffer | None = None, /) -> bytes: ...
-    def split(self, sep: ReadableBuffer | None = None, maxsplit: SupportsIndex = -1) -> list[bytes]: ...
-    def splitlines(self, keepends: bool = False) -> list[bytes]: ...
-    def startswith(
-        self,
-        prefix: ReadableBuffer | tuple[ReadableBuffer, ...],
-        start: SupportsIndex | None = ...,
-        end: SupportsIndex | None = ...,
-        /,
-    ) -> bool: ...
-    def strip(self, bytes: ReadableBuffer | None = None, /) -> bytes: ...
-    def swapcase(self) -> bytes: ...
-    def title(self) -> bytes: ...
-    def translate(self, table: ReadableBuffer | None, /, delete: bytes = b"") -> bytes: ...
-    def upper(self) -> bytes: ...
-    def zfill(self, width: SupportsIndex, /) -> bytes: ...
-    @classmethod
-    def fromhex(cls, string: str, /) -> Self: ...
-    @staticmethod
-    def maketrans(frm: ReadableBuffer, to: ReadableBuffer, /) -> bytes: ...
-    def __len__(self) -> int: ...
-    def __iter__(self) -> Iterator[int]: ...
-    def __hash__(self) -> int: ...
-    @overload
-    def __getitem__(self, key: SupportsIndex, /) -> int: ...
-    @overload
-    def __getitem__(self, key: slice, /) -> bytes: ...
-    def __add__(self, value: ReadableBuffer, /) -> bytes: ...
-    def __mul__(self, value: SupportsIndex, /) -> bytes: ...
-    def __rmul__(self, value: SupportsIndex, /) -> bytes: ...
-    def __mod__(self, value: Any, /) -> bytes: ...
-    # Incompatible with Sequence.__contains__
-    def __contains__(self, key: SupportsIndex | ReadableBuffer, /) -> bool: ...  # type: ignore[override]
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __lt__(self, value: bytes, /) -> bool: ...
-    def __le__(self, value: bytes, /) -> bool: ...
-    def __gt__(self, value: bytes, /) -> bool: ...
-    def __ge__(self, value: bytes, /) -> bool: ...
-    def __getnewargs__(self) -> tuple[bytes]: ...
-    if sys.version_info >= (3, 11):
-        def __bytes__(self) -> bytes: ...
+    return 'Traceback (most recent call last):\n' + result
 
-    def __buffer__(self, flags: int, /) -> memoryview: ...
+#######################################
+# POSITION
+#######################################
 
-class bytearray(MutableSequence[int]):
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, ints: Iterable[SupportsIndex] | SupportsIndex | ReadableBuffer, /) -> None: ...
-    @overload
-    def __init__(self, string: str, /, encoding: str, errors: str = ...) -> None: ...
-    def append(self, item: SupportsIndex, /) -> None: ...
-    def capitalize(self) -> bytearray: ...
-    def center(self, width: SupportsIndex, fillchar: bytes = b" ", /) -> bytearray: ...
-    def count(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def copy(self) -> bytearray: ...
-    def decode(self, encoding: str = "utf-8", errors: str = "strict") -> str: ...
-    def endswith(
-        self,
-        suffix: ReadableBuffer | tuple[ReadableBuffer, ...],
-        start: SupportsIndex | None = ...,
-        end: SupportsIndex | None = ...,
-        /,
-    ) -> bool: ...
-    def expandtabs(self, tabsize: SupportsIndex = 8) -> bytearray: ...
-    def extend(self, iterable_of_ints: Iterable[SupportsIndex], /) -> None: ...
-    def find(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def hex(self, sep: str | bytes = ..., bytes_per_sep: SupportsIndex = ...) -> str: ...
-    def index(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def insert(self, index: SupportsIndex, item: SupportsIndex, /) -> None: ...
-    def isalnum(self) -> bool: ...
-    def isalpha(self) -> bool: ...
-    def isascii(self) -> bool: ...
-    def isdigit(self) -> bool: ...
-    def islower(self) -> bool: ...
-    def isspace(self) -> bool: ...
-    def istitle(self) -> bool: ...
-    def isupper(self) -> bool: ...
-    def join(self, iterable_of_bytes: Iterable[ReadableBuffer], /) -> bytearray: ...
-    def ljust(self, width: SupportsIndex, fillchar: bytes | bytearray = b" ", /) -> bytearray: ...
-    def lower(self) -> bytearray: ...
-    def lstrip(self, bytes: ReadableBuffer | None = None, /) -> bytearray: ...
-    def partition(self, sep: ReadableBuffer, /) -> tuple[bytearray, bytearray, bytearray]: ...
-    def pop(self, index: int = -1, /) -> int: ...
-    def remove(self, value: int, /) -> None: ...
-    if sys.version_info >= (3, 9):
-        def removeprefix(self, prefix: ReadableBuffer, /) -> bytearray: ...
-        def removesuffix(self, suffix: ReadableBuffer, /) -> bytearray: ...
+class Position:
+  def __init__(self, idx, ln, col, fn, ftxt):
+    self.idx = idx
+    self.ln = ln
+    self.col = col
+    self.fn = fn
+    self.ftxt = ftxt
 
-    def replace(self, old: ReadableBuffer, new: ReadableBuffer, count: SupportsIndex = -1, /) -> bytearray: ...
-    def rfind(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def rindex(
-        self, sub: ReadableBuffer | SupportsIndex, start: SupportsIndex | None = ..., end: SupportsIndex | None = ..., /
-    ) -> int: ...
-    def rjust(self, width: SupportsIndex, fillchar: bytes | bytearray = b" ", /) -> bytearray: ...
-    def rpartition(self, sep: ReadableBuffer, /) -> tuple[bytearray, bytearray, bytearray]: ...
-    def rsplit(self, sep: ReadableBuffer | None = None, maxsplit: SupportsIndex = -1) -> list[bytearray]: ...
-    def rstrip(self, bytes: ReadableBuffer | None = None, /) -> bytearray: ...
-    def split(self, sep: ReadableBuffer | None = None, maxsplit: SupportsIndex = -1) -> list[bytearray]: ...
-    def splitlines(self, keepends: bool = False) -> list[bytearray]: ...
-    def startswith(
-        self,
-        prefix: ReadableBuffer | tuple[ReadableBuffer, ...],
-        start: SupportsIndex | None = ...,
-        end: SupportsIndex | None = ...,
-        /,
-    ) -> bool: ...
-    def strip(self, bytes: ReadableBuffer | None = None, /) -> bytearray: ...
-    def swapcase(self) -> bytearray: ...
-    def title(self) -> bytearray: ...
-    def translate(self, table: ReadableBuffer | None, /, delete: bytes = b"") -> bytearray: ...
-    def upper(self) -> bytearray: ...
-    def zfill(self, width: SupportsIndex, /) -> bytearray: ...
-    @classmethod
-    def fromhex(cls, string: str, /) -> Self: ...
-    @staticmethod
-    def maketrans(frm: ReadableBuffer, to: ReadableBuffer, /) -> bytes: ...
-    def __len__(self) -> int: ...
-    def __iter__(self) -> Iterator[int]: ...
-    __hash__: ClassVar[None]  # type: ignore[assignment]
-    @overload
-    def __getitem__(self, key: SupportsIndex, /) -> int: ...
-    @overload
-    def __getitem__(self, key: slice, /) -> bytearray: ...
-    @overload
-    def __setitem__(self, key: SupportsIndex, value: SupportsIndex, /) -> None: ...
-    @overload
-    def __setitem__(self, key: slice, value: Iterable[SupportsIndex] | bytes, /) -> None: ...
-    def __delitem__(self, key: SupportsIndex | slice, /) -> None: ...
-    def __add__(self, value: ReadableBuffer, /) -> bytearray: ...
-    # The superclass wants us to accept Iterable[int], but that fails at runtime.
-    def __iadd__(self, value: ReadableBuffer, /) -> Self: ...  # type: ignore[override]
-    def __mul__(self, value: SupportsIndex, /) -> bytearray: ...
-    def __rmul__(self, value: SupportsIndex, /) -> bytearray: ...
-    def __imul__(self, value: SupportsIndex, /) -> Self: ...
-    def __mod__(self, value: Any, /) -> bytes: ...
-    # Incompatible with Sequence.__contains__
-    def __contains__(self, key: SupportsIndex | ReadableBuffer, /) -> bool: ...  # type: ignore[override]
-    def __eq__(self, value: object, /) -> bool: ...
-    def __ne__(self, value: object, /) -> bool: ...
-    def __lt__(self, value: ReadableBuffer, /) -> bool: ...
-    def __le__(self, value: ReadableBuffer, /) -> bool: ...
-    def __gt__(self, value: ReadableBuffer, /) -> bool: ...
-    def __ge__(self, value: ReadableBuffer, /) -> bool: ...
-    def __alloc__(self) -> int: ...
-    def __buffer__(self, flags: int, /) -> memoryview: ...
-    def __release_buffer__(self, buffer: memoryview, /) -> None: ...
+  def advance(self, current_char=None):
+    self.idx += 1
+    self.col += 1
 
-_IntegerFormats: TypeAlias = Literal[
-    "b", "B", "@b", "@B", "h", "H", "@h", "@H", "i", "I", "@i", "@I", "l", "L", "@l", "@L", "q", "Q", "@q", "@Q", "P", "@P"
+    if current_char == '\n':
+      self.ln += 1
+      self.col = 0
+
+    return self
+
+  def copy(self):
+    return Position(self.idx, self.ln, self.col, self.fn, self.ftxt)
+
+#######################################
+# TOKENS
+#######################################
+
+TT_INT				= 'INT'
+TT_FLOAT    	= 'FLOAT'
+TT_STRING			= 'STRING'
+TT_IDENTIFIER	= 'IDENTIFIER'
+TT_KEYWORD		= 'KEYWORD'
+TT_PLUS     	= 'PLUS'
+TT_MINUS    	= 'MINUS'
+TT_MUL      	= 'MUL'
+TT_DIV      	= 'DIV'
+TT_POW				= 'POW'
+TT_EQ					= 'EQ'
+TT_LPAREN   	= 'LPAREN'
+TT_RPAREN   	= 'RPAREN'
+TT_LSQUARE    = 'LSQUARE'
+TT_RSQUARE    = 'RSQUARE'
+TT_EE					= 'EE'
+TT_NE					= 'NE'
+TT_LT					= 'LT'
+TT_GT					= 'GT'
+TT_LTE				= 'LTE'
+TT_GTE				= 'GTE'
+TT_COMMA			= 'COMMA'
+TT_ARROW			= 'ARROW'
+TT_NEWLINE		= 'NEWLINE'
+TT_EOF				= 'EOF'
+
+KEYWORDS = [
+  'var',
+  'and',
+  'or',
+  'not',
+  'if',
+  'elif',
+  'else',
+  'for',
+  'to',
+  'step',
+  'while',
+  'fun',
+  'then',
+  'end',
+  'return',
+  'continue',
+  'break',
 ]
 
-@final
-class memoryview(Sequence[_I]):
-    @property
-    def format(self) -> str: ...
-    @property
-    def itemsize(self) -> int: ...
-    @property
-    def shape(self) -> tuple[int, ...] | None: ...
-    @property
-    def strides(self) -> tuple[int, ...] | None: ...
-    @property
-    def suboffsets(self) -> tuple[int, ...] | None: ...
-    @property
-    def readonly(self) -> bool: ...
-    @property
-    def ndim(self) -> int: ...
-    @property
-    def obj(self) -> ReadableBuffer: ...
-    @property
-    def c_contiguous(self) -> bool: ...
-    @property
-    def f_contiguous(self) -> bool: ...
-    @property
-    def contiguous(self) -> bool: ...
-    @property
-    def nbytes(self) -> int: ...
-    def __new__(cls, obj: ReadableBuffer) -> Self: ...
-    def __enter__(self) -> Self: ...
-    def __exit__(
-        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: TracebackType | None, /
-    ) -> None: ...
-    @overload
-    def cast(self, format: Literal["c", "@c"], shape: list[int] | tuple[int, ...] = ...) -> memoryview[bytes]: ...
-    @overload
-    def cast(self, format: Literal["f", "@f", "d", "@d"], shape: list[int] | tuple[int, ...] = ...) -> memoryview[float]: ...
-    @overload
-    def cast(self, format: Literal["?"], shape: list[int] | tuple[int, ...] = ...) -> memoryview[bool]: ...
-    @overload
-    def cast(self, format: _IntegerFormats, shape: list[int] | tuple[int, ...] = ...) -> memoryview: ...
-    @overload
-    def __getitem__(self, key: SupportsIndex | tuple[SupportsIndex, ...], /) -> _I: ...
-    @overload
-    def __getitem__(self, key: slice, /) -> memoryview[_I]: ...
-    def __contains__(self, x: object, /) -> bool: ...
-    def __iter__(self) -> Iterator[_I]: ...
-    def __len__(self) -> int: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-    @overload
-    def __setitem__(self, key: slice, value: ReadableBuffer, /) -> None: ...
-    @overload
-    def __setitem__(self, key: SupportsIndex | tuple[SupportsIndex, ...], value: SupportsIndex, /) -> None: ...
-    if sys.version_info >= (3, 10):
-        def tobytes(self, order: Literal["C", "F", "A"] | None = "C") -> bytes: ...
+class Token:
+  def __init__(self, type_, value=None, pos_start=None, pos_end=None):
+    self.type = type_
+    self.value = value
+
+    if pos_start:
+      self.pos_start = pos_start.copy()
+      self.pos_end = pos_start.copy()
+      self.pos_end.advance()
+
+    if pos_end:
+      self.pos_end = pos_end.copy()
+
+  def matches(self, type_, value):
+    return self.type == type_ and self.value == value
+  
+  def __repr__(self):
+    if self.value: return f'{self.type}:{self.value}'
+    return f'{self.type}'
+
+#######################################
+# LEXER
+#######################################
+
+class Lexer:
+  def __init__(self, fn, text):
+    self.fn = fn
+    self.text = text
+    self.pos = Position(-1, 0, -1, fn, text)
+    self.current_char = None
+    self.advance()
+  
+  def advance(self):
+    self.pos.advance(self.current_char)
+    self.current_char = self.text[self.pos.idx] if self.pos.idx < len(self.text) else None
+
+  def make_tokens(self):
+    tokens = []
+
+    while self.current_char != None:
+      if self.current_char in ' \t':
+        self.advance()
+      elif self.current_char == '#':
+        self.skip_comment()
+      elif self.current_char in ';\n':
+        tokens.append(Token(TT_NEWLINE, pos_start=self.pos))
+        self.advance()
+      elif self.current_char in DIGITS:
+        tokens.append(self.make_number())
+      elif self.current_char in LETTERS:
+        tokens.append(self.make_identifier())
+      elif self.current_char == '"':
+        tokens.append(self.make_string())
+      elif self.current_char == '+':
+        tokens.append(Token(TT_PLUS, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '-':
+        tokens.append(self.make_minus_or_arrow())
+      elif self.current_char == '*':
+        tokens.append(Token(TT_MUL, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '/':
+        tokens.append(Token(TT_DIV, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '^':
+        tokens.append(Token(TT_POW, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '(':
+        tokens.append(Token(TT_LPAREN, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == ')':
+        tokens.append(Token(TT_RPAREN, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '[':
+        tokens.append(Token(TT_LSQUARE, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == ']':
+        tokens.append(Token(TT_RSQUARE, pos_start=self.pos))
+        self.advance()
+      elif self.current_char == '!':
+        token, error = self.make_not_equals()
+        if error: return [], error
+        tokens.append(token)
+      elif self.current_char == '=':
+        tokens.append(self.make_equals())
+      elif self.current_char == '<':
+        tokens.append(self.make_less_than())
+      elif self.current_char == '>':
+        tokens.append(self.make_greater_than())
+      elif self.current_char == ',':
+        tokens.append(Token(TT_COMMA, pos_start=self.pos))
+        self.advance()
+      else:
+        pos_start = self.pos.copy()
+        char = self.current_char
+        self.advance()
+        return [], IllegalCharError(pos_start, self.pos, "'" + char + "'")
+
+    tokens.append(Token(TT_EOF, pos_start=self.pos))
+    # Trace tokens if tracing active
+    if CURRENT_TRACE is not None:
+      for t in tokens:
+        CURRENT_TRACE.add_token(t)
+    return tokens, None
+
+  def make_number(self):
+    num_str = ''
+    dot_count = 0
+    pos_start = self.pos.copy()
+
+    while self.current_char != None and self.current_char in DIGITS + '.':
+      if self.current_char == '.':
+        if dot_count == 1: break
+        dot_count += 1
+      num_str += self.current_char
+      self.advance()
+
+    if dot_count == 0:
+      return Token(TT_INT, int(num_str), pos_start, self.pos)
     else:
-        def tobytes(self, order: Literal["C", "F", "A"] | None = None) -> bytes: ...
-
-    def tolist(self) -> list[int]: ...
-    def toreadonly(self) -> memoryview: ...
-    def release(self) -> None: ...
-    def hex(self, sep: str | bytes = ..., bytes_per_sep: SupportsIndex = ...) -> str: ...
-    def __buffer__(self, flags: int, /) -> memoryview: ...
-    def __release_buffer__(self, buffer: memoryview, /) -> None: ...
-
-@final
-class bool(int):
-    def __new__(cls, o: object = ..., /) -> Self: ...
-    # The following overloads could be represented more elegantly with a TypeVar("_B", bool, int),
-    # however mypy has a bug regarding TypeVar constraints (https://github.com/python/mypy/issues/11880).
-    @overload
-    def __and__(self, value: bool, /) -> bool: ...
-    @overload
-    def __and__(self, value: int, /) -> int: ...
-    @overload
-    def __or__(self, value: bool, /) -> bool: ...
-    @overload
-    def __or__(self, value: int, /) -> int: ...
-    @overload
-    def __xor__(self, value: bool, /) -> bool: ...
-    @overload
-    def __xor__(self, value: int, /) -> int: ...
-    @overload
-    def __rand__(self, value: bool, /) -> bool: ...
-    @overload
-    def __rand__(self, value: int, /) -> int: ...
-    @overload
-    def __ror__(self, value: bool, /) -> bool: ...
-    @overload
-    def __ror__(self, value: int, /) -> int: ...
-    @overload
-    def __rxor__(self, value: bool, /) -> bool: ...
-    @overload
-    def __rxor__(self, value: int, /) -> int: ...
-    def __getnewargs__(self) -> tuple[int]: ...
-    @deprecated("Will throw an error in Python 3.14. Use `not` for logical negation of bools instead.")
-    def __invert__(self) -> int: ...
-
-@final
-class slice:
-    @property
-    def start(self) -> Any: ...
-    @property
-    def step(self) -> Any: ...
-    @property
-    def stop(self) -> Any: ...
-    @overload
-    def __new__(cls, stop: Any, /) -> Self: ...
-    @overload
-    def __new__(cls, start: Any, stop: Any, step: Any = ..., /) -> Self: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    __hash__: ClassVar[None]  # type: ignore[assignment]
-    def indices(self, len: SupportsIndex, /) -> tuple[int, int, int]: ...
-
-class tuple(Sequence[_T_co]):
-    def __new__(cls, iterable: Iterable[_T_co] = ..., /) -> Self: ...
-    def __len__(self) -> int: ...
-    def __contains__(self, key: object, /) -> bool: ...
-    @overload
-    def __getitem__(self, key: SupportsIndex, /) -> _T_co: ...
-    @overload
-    def __getitem__(self, key: slice, /) -> tuple[_T_co, ...]: ...
-    def __iter__(self) -> Iterator[_T_co]: ...
-    def __lt__(self, value: tuple[_T_co, ...], /) -> bool: ...
-    def __le__(self, value: tuple[_T_co, ...], /) -> bool: ...
-    def __gt__(self, value: tuple[_T_co, ...], /) -> bool: ...
-    def __ge__(self, value: tuple[_T_co, ...], /) -> bool: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-    @overload
-    def __add__(self, value: tuple[_T_co, ...], /) -> tuple[_T_co, ...]: ...
-    @overload
-    def __add__(self, value: tuple[_T, ...], /) -> tuple[_T_co | _T, ...]: ...
-    def __mul__(self, value: SupportsIndex, /) -> tuple[_T_co, ...]: ...
-    def __rmul__(self, value: SupportsIndex, /) -> tuple[_T_co, ...]: ...
-    def count(self, value: Any, /) -> int: ...
-    def index(self, value: Any, start: SupportsIndex = 0, stop: SupportsIndex = sys.maxsize, /) -> int: ...
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-
-# Doesn't exist at runtime, but deleting this breaks mypy. See #2999
-@final
-@type_check_only
-class function:
-    # Make sure this class definition stays roughly in line with `types.FunctionType`
-    @property
-    def __closure__(self) -> tuple[CellType, ...] | None: ...
-    __code__: CodeType
-    __defaults__: tuple[Any, ...] | None
-    __dict__: dict[str, Any]
-    @property
-    def __globals__(self) -> dict[str, Any]: ...
-    __name__: str
-    __qualname__: str
-    __annotations__: dict[str, Any]
-    __kwdefaults__: dict[str, Any]
-    if sys.version_info >= (3, 10):
-        @property
-        def __builtins__(self) -> dict[str, Any]: ...
-    if sys.version_info >= (3, 12):
-        __type_params__: tuple[TypeVar | ParamSpec | TypeVarTuple, ...]
-
-    __module__: str
-    # mypy uses `builtins.function.__get__` to represent methods, properties, and getset_descriptors so we type the return as Any.
-    def __get__(self, instance: object, owner: type | None = None, /) -> Any: ...
-
-class list(MutableSequence[_T]):
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, iterable: Iterable[_T], /) -> None: ...
-    def copy(self) -> list[_T]: ...
-    def append(self, object: _T, /) -> None: ...
-    def extend(self, iterable: Iterable[_T], /) -> None: ...
-    def pop(self, index: SupportsIndex = -1, /) -> _T: ...
-    # Signature of `list.index` should be kept in line with `collections.UserList.index()`
-    # and multiprocessing.managers.ListProxy.index()
-    def index(self, value: _T, start: SupportsIndex = 0, stop: SupportsIndex = sys.maxsize, /) -> int: ...
-    def count(self, value: _T, /) -> int: ...
-    def insert(self, index: SupportsIndex, object: _T, /) -> None: ...
-    def remove(self, value: _T, /) -> None: ...
-    # Signature of `list.sort` should be kept inline with `collections.UserList.sort()`
-    # and multiprocessing.managers.ListProxy.sort()
-    #
-    # Use list[SupportsRichComparisonT] for the first overload rather than [SupportsRichComparison]
-    # to work around invariance
-    @overload
-    def sort(self: list[SupportsRichComparisonT], *, key: None = None, reverse: bool = False) -> None: ...
-    @overload
-    def sort(self, *, key: Callable[[_T], SupportsRichComparison], reverse: bool = False) -> None: ...
-    def __len__(self) -> int: ...
-    def __iter__(self) -> Iterator[_T]: ...
-    __hash__: ClassVar[None]  # type: ignore[assignment]
-    @overload
-    def __getitem__(self, i: SupportsIndex, /) -> _T: ...
-    @overload
-    def __getitem__(self, s: slice, /) -> list[_T]: ...
-    @overload
-    def __setitem__(self, key: SupportsIndex, value: _T, /) -> None: ...
-    @overload
-    def __setitem__(self, key: slice, value: Iterable[_T], /) -> None: ...
-    def __delitem__(self, key: SupportsIndex | slice, /) -> None: ...
-    # Overloading looks unnecessary, but is needed to work around complex mypy problems
-    @overload
-    def __add__(self, value: list[_T], /) -> list[_T]: ...
-    @overload
-    def __add__(self, value: list[_S], /) -> list[_S | _T]: ...
-    def __iadd__(self, value: Iterable[_T], /) -> Self: ...  # type: ignore[misc]
-    def __mul__(self, value: SupportsIndex, /) -> list[_T]: ...
-    def __rmul__(self, value: SupportsIndex, /) -> list[_T]: ...
-    def __imul__(self, value: SupportsIndex, /) -> Self: ...
-    def __contains__(self, key: object, /) -> bool: ...
-    def __reversed__(self) -> Iterator[_T]: ...
-    def __gt__(self, value: list[_T], /) -> bool: ...
-    def __ge__(self, value: list[_T], /) -> bool: ...
-    def __lt__(self, value: list[_T], /) -> bool: ...
-    def __le__(self, value: list[_T], /) -> bool: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-
-class dict(MutableMapping[_KT, _VT]):
-    # __init__ should be kept roughly in line with `collections.UserDict.__init__`, which has similar semantics
-    # Also multiprocessing.managers.SyncManager.dict()
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self: dict[str, _VT], **kwargs: _VT) -> None: ...  # pyright: ignore[reportInvalidTypeVarUse]  #11780
-    @overload
-    def __init__(self, map: SupportsKeysAndGetItem[_KT, _VT], /) -> None: ...
-    @overload
-    def __init__(
-        self: dict[str, _VT],  # pyright: ignore[reportInvalidTypeVarUse]  #11780
-        map: SupportsKeysAndGetItem[str, _VT],
-        /,
-        **kwargs: _VT,
-    ) -> None: ...
-    @overload
-    def __init__(self, iterable: Iterable[tuple[_KT, _VT]], /) -> None: ...
-    @overload
-    def __init__(
-        self: dict[str, _VT],  # pyright: ignore[reportInvalidTypeVarUse]  #11780
-        iterable: Iterable[tuple[str, _VT]],
-        /,
-        **kwargs: _VT,
-    ) -> None: ...
-    # Next two overloads are for dict(string.split(sep) for string in iterable)
-    # Cannot be Iterable[Sequence[_T]] or otherwise dict(["foo", "bar", "baz"]) is not an error
-    @overload
-    def __init__(self: dict[str, str], iterable: Iterable[list[str]], /) -> None: ...
-    @overload
-    def __init__(self: dict[bytes, bytes], iterable: Iterable[list[bytes]], /) -> None: ...
-    def __new__(cls, *args: Any, **kwargs: Any) -> Self: ...
-    def copy(self) -> dict[_KT, _VT]: ...
-    def keys(self) -> dict_keys[_KT, _VT]: ...
-    def values(self) -> dict_values[_KT, _VT]: ...
-    def items(self) -> dict_items[_KT, _VT]: ...
-    # Signature of `dict.fromkeys` should be kept identical to `fromkeys` methods of `OrderedDict`/`ChainMap`/`UserDict` in `collections`
-    # TODO: the true signature of `dict.fromkeys` is not expressible in the current type system.
-    # See #3800 & https://github.com/python/typing/issues/548#issuecomment-683336963.
-    @classmethod
-    @overload
-    def fromkeys(cls, iterable: Iterable[_T], value: None = None, /) -> dict[_T, Any | None]: ...
-    @classmethod
-    @overload
-    def fromkeys(cls, iterable: Iterable[_T], value: _S, /) -> dict[_T, _S]: ...
-    # Positional-only in dict, but not in MutableMapping
-    @overload  # type: ignore[override]
-    def get(self, key: _KT, /) -> _VT | None: ...
-    @overload
-    def get(self, key: _KT, default: _VT, /) -> _VT: ...
-    @overload
-    def get(self, key: _KT, default: _T, /) -> _VT | _T: ...
-    @overload
-    def pop(self, key: _KT, /) -> _VT: ...
-    @overload
-    def pop(self, key: _KT, default: _VT, /) -> _VT: ...
-    @overload
-    def pop(self, key: _KT, default: _T, /) -> _VT | _T: ...
-    def __len__(self) -> int: ...
-    def __getitem__(self, key: _KT, /) -> _VT: ...
-    def __setitem__(self, key: _KT, value: _VT, /) -> None: ...
-    def __delitem__(self, key: _KT, /) -> None: ...
-    def __iter__(self) -> Iterator[_KT]: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __reversed__(self) -> Iterator[_KT]: ...
-    __hash__: ClassVar[None]  # type: ignore[assignment]
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-        @overload
-        def __or__(self, value: dict[_KT, _VT], /) -> dict[_KT, _VT]: ...
-        @overload
-        def __or__(self, value: dict[_T1, _T2], /) -> dict[_KT | _T1, _VT | _T2]: ...
-        @overload
-        def __ror__(self, value: dict[_KT, _VT], /) -> dict[_KT, _VT]: ...
-        @overload
-        def __ror__(self, value: dict[_T1, _T2], /) -> dict[_KT | _T1, _VT | _T2]: ...
-        # dict.__ior__ should be kept roughly in line with MutableMapping.update()
-        @overload  # type: ignore[misc]
-        def __ior__(self, value: SupportsKeysAndGetItem[_KT, _VT], /) -> Self: ...
-        @overload
-        def __ior__(self, value: Iterable[tuple[_KT, _VT]], /) -> Self: ...
-
-class set(MutableSet[_T]):
-    @overload
-    def __init__(self) -> None: ...
-    @overload
-    def __init__(self, iterable: Iterable[_T], /) -> None: ...
-    def add(self, element: _T, /) -> None: ...
-    def copy(self) -> set[_T]: ...
-    def difference(self, *s: Iterable[Any]) -> set[_T]: ...
-    def difference_update(self, *s: Iterable[Any]) -> None: ...
-    def discard(self, element: _T, /) -> None: ...
-    def intersection(self, *s: Iterable[Any]) -> set[_T]: ...
-    def intersection_update(self, *s: Iterable[Any]) -> None: ...
-    def isdisjoint(self, s: Iterable[Any], /) -> bool: ...
-    def issubset(self, s: Iterable[Any], /) -> bool: ...
-    def issuperset(self, s: Iterable[Any], /) -> bool: ...
-    def remove(self, element: _T, /) -> None: ...
-    def symmetric_difference(self, s: Iterable[_T], /) -> set[_T]: ...
-    def symmetric_difference_update(self, s: Iterable[_T], /) -> None: ...
-    def union(self, *s: Iterable[_S]) -> set[_T | _S]: ...
-    def update(self, *s: Iterable[_T]) -> None: ...
-    def __len__(self) -> int: ...
-    def __contains__(self, o: object, /) -> bool: ...
-    def __iter__(self) -> Iterator[_T]: ...
-    def __and__(self, value: AbstractSet[object], /) -> set[_T]: ...
-    def __iand__(self, value: AbstractSet[object], /) -> Self: ...
-    def __or__(self, value: AbstractSet[_S], /) -> set[_T | _S]: ...
-    def __ior__(self, value: AbstractSet[_T], /) -> Self: ...  # type: ignore[override,misc]
-    def __sub__(self, value: AbstractSet[_T | None], /) -> set[_T]: ...
-    def __isub__(self, value: AbstractSet[object], /) -> Self: ...
-    def __xor__(self, value: AbstractSet[_S], /) -> set[_T | _S]: ...
-    def __ixor__(self, value: AbstractSet[_T], /) -> Self: ...  # type: ignore[override,misc]
-    def __le__(self, value: AbstractSet[object], /) -> bool: ...
-    def __lt__(self, value: AbstractSet[object], /) -> bool: ...
-    def __ge__(self, value: AbstractSet[object], /) -> bool: ...
-    def __gt__(self, value: AbstractSet[object], /) -> bool: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    __hash__: ClassVar[None]  # type: ignore[assignment]
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-
-class frozenset(AbstractSet[_T_co]):
-    @overload
-    def __new__(cls) -> Self: ...
-    @overload
-    def __new__(cls, iterable: Iterable[_T_co], /) -> Self: ...
-    def copy(self) -> frozenset[_T_co]: ...
-    def difference(self, *s: Iterable[object]) -> frozenset[_T_co]: ...
-    def intersection(self, *s: Iterable[object]) -> frozenset[_T_co]: ...
-    def isdisjoint(self, s: Iterable[_T_co], /) -> bool: ...
-    def issubset(self, s: Iterable[object], /) -> bool: ...
-    def issuperset(self, s: Iterable[object], /) -> bool: ...
-    def symmetric_difference(self, s: Iterable[_T_co], /) -> frozenset[_T_co]: ...
-    def union(self, *s: Iterable[_S]) -> frozenset[_T_co | _S]: ...
-    def __len__(self) -> int: ...
-    def __contains__(self, o: object, /) -> bool: ...
-    def __iter__(self) -> Iterator[_T_co]: ...
-    def __and__(self, value: AbstractSet[_T_co], /) -> frozenset[_T_co]: ...
-    def __or__(self, value: AbstractSet[_S], /) -> frozenset[_T_co | _S]: ...
-    def __sub__(self, value: AbstractSet[_T_co], /) -> frozenset[_T_co]: ...
-    def __xor__(self, value: AbstractSet[_S], /) -> frozenset[_T_co | _S]: ...
-    def __le__(self, value: AbstractSet[object], /) -> bool: ...
-    def __lt__(self, value: AbstractSet[object], /) -> bool: ...
-    def __ge__(self, value: AbstractSet[object], /) -> bool: ...
-    def __gt__(self, value: AbstractSet[object], /) -> bool: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-
-class enumerate(Iterator[tuple[int, _T]]):
-    def __new__(cls, iterable: Iterable[_T], start: int = ...) -> Self: ...
-    def __iter__(self) -> Self: ...
-    def __next__(self) -> tuple[int, _T]: ...
-    if sys.version_info >= (3, 9):
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
-
-@final
-class range(Sequence[int]):
-    @property
-    def start(self) -> int: ...
-    @property
-    def stop(self) -> int: ...
-    @property
-    def step(self) -> int: ...
-    @overload
-    def __new__(cls, stop: SupportsIndex, /) -> Self: ...
-    @overload
-    def __new__(cls, start: SupportsIndex, stop: SupportsIndex, step: SupportsIndex = ..., /) -> Self: ...
-    def count(self, value: int, /) -> int: ...
-    def index(self, value: int, /) -> int: ...  # type: ignore[override]
-    def __len__(self) -> int: ...
-    def __eq__(self, value: object, /) -> bool: ...
-    def __hash__(self) -> int: ...
-    def __contains__(self, key: object, /) -> bool: ...
-    def __iter__(self) -> Iterator[int]: ...
-    @overload
-    def __getitem__(self, key: SupportsIndex, /) -> int: ...
-    @overload
-    def __getitem__(self, key: slice, /) -> range: ...
-    def __reversed__(self) -> Iterator[int]: ...
-
-class property:
-    fget: Callable[[Any], Any] | None
-    fset: Callable[[Any, Any], None] | None
-    fdel: Callable[[Any], None] | None
-    __isabstractmethod__: bool
-    if sys.version_info >= (3, 13):
-        __name__: str
-
-    def __init__(
-        self,
-        fget: Callable[[Any], Any] | None = ...,
-        fset: Callable[[Any, Any], None] | None = ...,
-        fdel: Callable[[Any], None] | None = ...,
-        doc: str | None = ...,
-    ) -> None: ...
-    def getter(self, fget: Callable[[Any], Any], /) -> property: ...
-    def setter(self, fset: Callable[[Any, Any], None], /) -> property: ...
-    def deleter(self, fdel: Callable[[Any], None], /) -> property: ...
-    def __get__(self, instance: Any, owner: type | None = None, /) -> Any: ...
-    def __set__(self, instance: Any, value: Any, /) -> None: ...
-    def __delete__(self, instance: Any, /) -> None: ...
-
-@final
-class _NotImplementedType(Any):
-    # A little weird, but typing the __call__ as NotImplemented makes the error message
-    # for NotImplemented() much better
-    __call__: NotImplemented  # type: ignore[valid-type]  # pyright: ignore[reportInvalidTypeForm]
-
-NotImplemented: _NotImplementedType
-
-def abs(x: SupportsAbs[_T], /) -> _T: ...
-def all(iterable: Iterable[object], /) -> bool: ...
-def any(iterable: Iterable[object], /) -> bool: ...
-def ascii(obj: object, /) -> str: ...
-def bin(number: int | SupportsIndex, /) -> str: ...
-def breakpoint(*args: Any, **kws: Any) -> None: ...
-def callable(obj: object, /) -> TypeIs[Callable[..., object]]: ...
-def chr(i: int, /) -> str: ...
-
-# We define this here instead of using os.PathLike to avoid import cycle issues.
-# See https://github.com/python/typeshed/pull/991#issuecomment-288160993
-class _PathLike(Protocol[AnyStr_co]):
-    def __fspath__(self) -> AnyStr_co: ...
-
-if sys.version_info >= (3, 10):
-    def aiter(async_iterable: SupportsAiter[_SupportsAnextT], /) -> _SupportsAnextT: ...
-
-    class _SupportsSynchronousAnext(Protocol[_AwaitableT_co]):
-        def __anext__(self) -> _AwaitableT_co: ...
-
-    @overload
-    # `anext` is not, in fact, an async function. When default is not provided
-    # `anext` is just a passthrough for `obj.__anext__`
-    # See discussion in #7491 and pure-Python implementation of `anext` at https://github.com/python/cpython/blob/ea786a882b9ed4261eafabad6011bc7ef3b5bf94/Lib/test/test_asyncgen.py#L52-L80
-    def anext(i: _SupportsSynchronousAnext[_AwaitableT], /) -> _AwaitableT: ...
-    @overload
-    async def anext(i: SupportsAnext[_T], default: _VT, /) -> _T | _VT: ...
-
-# compile() returns a CodeType, unless the flags argument includes PyCF_ONLY_AST (=1024),
-# in which case it returns ast.AST. We have overloads for flag 0 (the default) and for
-# explicitly passing PyCF_ONLY_AST. We fall back to Any for other values of flags.
-@overload
-def compile(
-    source: str | ReadableBuffer | _ast.Module | _ast.Expression | _ast.Interactive,
-    filename: str | ReadableBuffer | _PathLike[Any],
-    mode: str,
-    flags: Literal[0],
-    dont_inherit: bool = False,
-    optimize: int = -1,
-    *,
-    _feature_version: int = -1,
-) -> CodeType: ...
-@overload
-def compile(
-    source: str | ReadableBuffer | _ast.Module | _ast.Expression | _ast.Interactive,
-    filename: str | ReadableBuffer | _PathLike[Any],
-    mode: str,
-    *,
-    dont_inherit: bool = False,
-    optimize: int = -1,
-    _feature_version: int = -1,
-) -> CodeType: ...
-@overload
-def compile(
-    source: str | ReadableBuffer | _ast.Module | _ast.Expression | _ast.Interactive,
-    filename: str | ReadableBuffer | _PathLike[Any],
-    mode: str,
-    flags: Literal[1024],
-    dont_inherit: bool = False,
-    optimize: int = -1,
-    *,
-    _feature_version: int = -1,
-) -> _ast.AST: ...
-@overload
-def compile(
-    source: str | ReadableBuffer | _ast.Module | _ast.Expression | _ast.Interactive,
-    filename: str | ReadableBuffer | _PathLike[Any],
-    mode: str,
-    flags: int,
-    dont_inherit: bool = False,
-    optimize: int = -1,
-    *,
-    _feature_version: int = -1,
-) -> Any: ...
-def copyright() -> None: ...
-def credits() -> None: ...
-def delattr(obj: object, name: str, /) -> None: ...
-def dir(o: object = ..., /) -> list[str]: ...
-@overload
-def divmod(x: SupportsDivMod[_T_contra, _T_co], y: _T_contra, /) -> _T_co: ...
-@overload
-def divmod(x: _T_contra, y: SupportsRDivMod[_T_contra, _T_co], /) -> _T_co: ...
-
-# The `globals` argument to `eval` has to be `dict[str, Any]` rather than `dict[str, object]` due to invariance.
-# (The `globals` argument has to be a "real dict", rather than any old mapping, unlike the `locals` argument.)
-if sys.version_info >= (3, 13):
-    def eval(
-        source: str | ReadableBuffer | CodeType,
-        /,
-        globals: dict[str, Any] | None = None,
-        locals: Mapping[str, object] | None = None,
-    ) -> Any: ...
-
-else:
-    def eval(
-        source: str | ReadableBuffer | CodeType,
-        globals: dict[str, Any] | None = None,
-        locals: Mapping[str, object] | None = None,
-        /,
-    ) -> Any: ...
-
-# Comment above regarding `eval` applies to `exec` as well
-if sys.version_info >= (3, 13):
-    def exec(
-        source: str | ReadableBuffer | CodeType,
-        /,
-        globals: dict[str, Any] | None = None,
-        locals: Mapping[str, object] | None = None,
-        *,
-        closure: tuple[CellType, ...] | None = None,
-    ) -> None: ...
-
-elif sys.version_info >= (3, 11):
-    def exec(
-        source: str | ReadableBuffer | CodeType,
-        globals: dict[str, Any] | None = None,
-        locals: Mapping[str, object] | None = None,
-        /,
-        *,
-        closure: tuple[CellType, ...] | None = None,
-    ) -> None: ...
-
-else:
-    def exec(
-        source: str | ReadableBuffer | CodeType,
-        globals: dict[str, Any] | None = None,
-        locals: Mapping[str, object] | None = None,
-        /,
-    ) -> None: ...
-
-def exit(code: sys._ExitCode = None) -> NoReturn: ...
-
-class filter(Iterator[_T]):
-    @overload
-    def __new__(cls, function: None, iterable: Iterable[_T | None], /) -> Self: ...
-    @overload
-    def __new__(cls, function: Callable[[_S], TypeGuard[_T]], iterable: Iterable[_S], /) -> Self: ...
-    @overload
-    def __new__(cls, function: Callable[[_S], TypeIs[_T]], iterable: Iterable[_S], /) -> Self: ...
-    @overload
-    def __new__(cls, function: Callable[[_T], Any], iterable: Iterable[_T], /) -> Self: ...
-    def __iter__(self) -> Self: ...
-    def __next__(self) -> _T: ...
-
-def format(value: object, format_spec: str = "", /) -> str: ...
-@overload
-def getattr(o: object, name: str, /) -> Any: ...
-
-# While technically covered by the last overload, spelling out the types for None, bool
-# and basic containers help mypy out in some tricky situations involving type context
-# (aka bidirectional inference)
-@overload
-def getattr(o: object, name: str, default: None, /) -> Any | None: ...
-@overload
-def getattr(o: object, name: str, default: bool, /) -> Any | bool: ...
-@overload
-def getattr(o: object, name: str, default: list[Any], /) -> Any | list[Any]: ...
-@overload
-def getattr(o: object, name: str, default: dict[Any, Any], /) -> Any | dict[Any, Any]: ...
-@overload
-def getattr(o: object, name: str, default: _T, /) -> Any | _T: ...
-def globals() -> dict[str, Any]: ...
-def hasattr(obj: object, name: str, /) -> bool: ...
-def hash(obj: object, /) -> int: ...
-def help(request: object = ...) -> None: ...
-def hex(number: int | SupportsIndex, /) -> str: ...
-def id(obj: object, /) -> int: ...
-def input(prompt: object = "", /) -> str: ...
-
-class _GetItemIterable(Protocol[_T_co]):
-    def __getitem__(self, i: int, /) -> _T_co: ...
-
-@overload
-def iter(object: SupportsIter[_SupportsNextT], /) -> _SupportsNextT: ...
-@overload
-def iter(object: _GetItemIterable[_T], /) -> Iterator[_T]: ...
-@overload
-def iter(object: Callable[[], _T | None], sentinel: None, /) -> Iterator[_T]: ...
-@overload
-def iter(object: Callable[[], _T], sentinel: object, /) -> Iterator[_T]: ...
-
-# Keep this alias in sync with unittest.case._ClassInfo
-if sys.version_info >= (3, 10):
-    _ClassInfo: TypeAlias = type | types.UnionType | tuple[_ClassInfo, ...]
-else:
-    _ClassInfo: TypeAlias = type | tuple[_ClassInfo, ...]
-
-def isinstance(obj: object, class_or_tuple: _ClassInfo, /) -> bool: ...
-def issubclass(cls: type, class_or_tuple: _ClassInfo, /) -> bool: ...
-def len(obj: Sized, /) -> int: ...
-def license() -> None: ...
-def locals() -> dict[str, Any]: ...
-
-class map(Iterator[_S]):
-    @overload
-    def __new__(cls, func: Callable[[_T1], _S], iter1: Iterable[_T1], /) -> Self: ...
-    @overload
-    def __new__(cls, func: Callable[[_T1, _T2], _S], iter1: Iterable[_T1], iter2: Iterable[_T2], /) -> Self: ...
-    @overload
-    def __new__(
-        cls, func: Callable[[_T1, _T2, _T3], _S], iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], /
-    ) -> Self: ...
-    @overload
-    def __new__(
-        cls,
-        func: Callable[[_T1, _T2, _T3, _T4], _S],
-        iter1: Iterable[_T1],
-        iter2: Iterable[_T2],
-        iter3: Iterable[_T3],
-        iter4: Iterable[_T4],
-        /,
-    ) -> Self: ...
-    @overload
-    def __new__(
-        cls,
-        func: Callable[[_T1, _T2, _T3, _T4, _T5], _S],
-        iter1: Iterable[_T1],
-        iter2: Iterable[_T2],
-        iter3: Iterable[_T3],
-        iter4: Iterable[_T4],
-        iter5: Iterable[_T5],
-        /,
-    ) -> Self: ...
-    @overload
-    def __new__(
-        cls,
-        func: Callable[..., _S],
-        iter1: Iterable[Any],
-        iter2: Iterable[Any],
-        iter3: Iterable[Any],
-        iter4: Iterable[Any],
-        iter5: Iterable[Any],
-        iter6: Iterable[Any],
-        /,
-        *iterables: Iterable[Any],
-    ) -> Self: ...
-    def __iter__(self) -> Self: ...
-    def __next__(self) -> _S: ...
-
-@overload
-def max(
-    arg1: SupportsRichComparisonT, arg2: SupportsRichComparisonT, /, *_args: SupportsRichComparisonT, key: None = None
-) -> SupportsRichComparisonT: ...
-@overload
-def max(arg1: _T, arg2: _T, /, *_args: _T, key: Callable[[_T], SupportsRichComparison]) -> _T: ...
-@overload
-def max(iterable: Iterable[SupportsRichComparisonT], /, *, key: None = None) -> SupportsRichComparisonT: ...
-@overload
-def max(iterable: Iterable[_T], /, *, key: Callable[[_T], SupportsRichComparison]) -> _T: ...
-@overload
-def max(iterable: Iterable[SupportsRichComparisonT], /, *, key: None = None, default: _T) -> SupportsRichComparisonT | _T: ...
-@overload
-def max(iterable: Iterable[_T1], /, *, key: Callable[[_T1], SupportsRichComparison], default: _T2) -> _T1 | _T2: ...
-@overload
-def min(
-    arg1: SupportsRichComparisonT, arg2: SupportsRichComparisonT, /, *_args: SupportsRichComparisonT, key: None = None
-) -> SupportsRichComparisonT: ...
-@overload
-def min(arg1: _T, arg2: _T, /, *_args: _T, key: Callable[[_T], SupportsRichComparison]) -> _T: ...
-@overload
-def min(iterable: Iterable[SupportsRichComparisonT], /, *, key: None = None) -> SupportsRichComparisonT: ...
-@overload
-def min(iterable: Iterable[_T], /, *, key: Callable[[_T], SupportsRichComparison]) -> _T: ...
-@overload
-def min(iterable: Iterable[SupportsRichComparisonT], /, *, key: None = None, default: _T) -> SupportsRichComparisonT | _T: ...
-@overload
-def min(iterable: Iterable[_T1], /, *, key: Callable[[_T1], SupportsRichComparison], default: _T2) -> _T1 | _T2: ...
-@overload
-def next(i: SupportsNext[_T], /) -> _T: ...
-@overload
-def next(i: SupportsNext[_T], default: _VT, /) -> _T | _VT: ...
-def oct(number: int | SupportsIndex, /) -> str: ...
-
-_Opener: TypeAlias = Callable[[str, int], int]
-
-# Text mode: always returns a TextIOWrapper
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenTextMode = "r",
-    buffering: int = -1,
-    encoding: str | None = None,
-    errors: str | None = None,
-    newline: str | None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> TextIOWrapper: ...
-
-# Unbuffered binary mode: returns a FileIO
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenBinaryMode,
-    buffering: Literal[0],
-    encoding: None = None,
-    errors: None = None,
-    newline: None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> FileIO: ...
-
-# Buffering is on: return BufferedRandom, BufferedReader, or BufferedWriter
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenBinaryModeUpdating,
-    buffering: Literal[-1, 1] = -1,
-    encoding: None = None,
-    errors: None = None,
-    newline: None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> BufferedRandom: ...
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenBinaryModeWriting,
-    buffering: Literal[-1, 1] = -1,
-    encoding: None = None,
-    errors: None = None,
-    newline: None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> BufferedWriter: ...
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenBinaryModeReading,
-    buffering: Literal[-1, 1] = -1,
-    encoding: None = None,
-    errors: None = None,
-    newline: None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> BufferedReader: ...
-
-# Buffering cannot be determined: fall back to BinaryIO
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: OpenBinaryMode,
-    buffering: int = -1,
-    encoding: None = None,
-    errors: None = None,
-    newline: None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> BinaryIO: ...
-
-# Fallback if mode is not specified
-@overload
-def open(
-    file: FileDescriptorOrPath,
-    mode: str,
-    buffering: int = -1,
-    encoding: str | None = None,
-    errors: str | None = None,
-    newline: str | None = None,
-    closefd: bool = True,
-    opener: _Opener | None = None,
-) -> IO[Any]: ...
-def ord(c: str | bytes | bytearray, /) -> int: ...
-
-class _SupportsWriteAndFlush(SupportsWrite[_T_contra], SupportsFlush, Protocol[_T_contra]): ...
-
-@overload
-def print(
-    *values: object,
-    sep: str | None = " ",
-    end: str | None = "\n",
-    file: SupportsWrite[str] | None = None,
-    flush: Literal[False] = False,
-) -> None: ...
-@overload
-def print(
-    *values: object, sep: str | None = " ", end: str | None = "\n", file: _SupportsWriteAndFlush[str] | None = None, flush: bool
-) -> None: ...
-
-_E = TypeVar("_E", contravariant=True)
-_M = TypeVar("_M", contravariant=True)
-
-class _SupportsPow2(Protocol[_E, _T_co]):
-    def __pow__(self, other: _E, /) -> _T_co: ...
-
-class _SupportsPow3NoneOnly(Protocol[_E, _T_co]):
-    def __pow__(self, other: _E, modulo: None = None, /) -> _T_co: ...
-
-class _SupportsPow3(Protocol[_E, _M, _T_co]):
-    def __pow__(self, other: _E, modulo: _M, /) -> _T_co: ...
-
-_SupportsSomeKindOfPow = (  # noqa: Y026  # TODO: Use TypeAlias once mypy bugs are fixed
-    _SupportsPow2[Any, Any] | _SupportsPow3NoneOnly[Any, Any] | _SupportsPow3[Any, Any, Any]
-)
-
-# TODO: `pow(int, int, Literal[0])` fails at runtime,
-# but adding a `NoReturn` overload isn't a good solution for expressing that (see #8566).
-@overload
-def pow(base: int, exp: int, mod: int) -> int: ...
-@overload
-def pow(base: int, exp: Literal[0], mod: None = None) -> Literal[1]: ...
-@overload
-def pow(base: int, exp: _PositiveInteger, mod: None = None) -> int: ...
-@overload
-def pow(base: int, exp: _NegativeInteger, mod: None = None) -> float: ...
-
-# int base & positive-int exp -> int; int base & negative-int exp -> float
-# return type must be Any as `int | float` causes too many false-positive errors
-@overload
-def pow(base: int, exp: int, mod: None = None) -> Any: ...
-@overload
-def pow(base: _PositiveInteger, exp: float, mod: None = None) -> float: ...
-@overload
-def pow(base: _NegativeInteger, exp: float, mod: None = None) -> complex: ...
-@overload
-def pow(base: float, exp: int, mod: None = None) -> float: ...
-
-# float base & float exp could return float or complex
-# return type must be Any (same as complex base, complex exp),
-# as `float | complex` causes too many false-positive errors
-@overload
-def pow(base: float, exp: complex | _SupportsSomeKindOfPow, mod: None = None) -> Any: ...
-@overload
-def pow(base: complex, exp: complex | _SupportsSomeKindOfPow, mod: None = None) -> complex: ...
-@overload
-def pow(base: _SupportsPow2[_E, _T_co], exp: _E, mod: None = None) -> _T_co: ...  # type: ignore[overload-overlap]
-@overload
-def pow(base: _SupportsPow3NoneOnly[_E, _T_co], exp: _E, mod: None = None) -> _T_co: ...  # type: ignore[overload-overlap]
-@overload
-def pow(base: _SupportsPow3[_E, _M, _T_co], exp: _E, mod: _M) -> _T_co: ...
-@overload
-def pow(base: _SupportsSomeKindOfPow, exp: float, mod: None = None) -> Any: ...
-@overload
-def pow(base: _SupportsSomeKindOfPow, exp: complex, mod: None = None) -> complex: ...
-def quit(code: sys._ExitCode = None) -> NoReturn: ...
-
-class reversed(Iterator[_T]):
-    @overload
-    def __new__(cls, sequence: Reversible[_T], /) -> Iterator[_T]: ...  # type: ignore[misc]
-    @overload
-    def __new__(cls, sequence: SupportsLenAndGetItem[_T], /) -> Iterator[_T]: ...  # type: ignore[misc]
-    def __iter__(self) -> Self: ...
-    def __next__(self) -> _T: ...
-    def __length_hint__(self) -> int: ...
-
-def repr(obj: object, /) -> str: ...
-
-# See https://github.com/python/typeshed/pull/9141
-# and https://github.com/python/typeshed/pull/9151
-# on why we don't use `SupportsRound` from `typing.pyi`
-
-class _SupportsRound1(Protocol[_T_co]):
-    def __round__(self) -> _T_co: ...
-
-class _SupportsRound2(Protocol[_T_co]):
-    def __round__(self, ndigits: int, /) -> _T_co: ...
-
-@overload
-def round(number: _SupportsRound1[_T], ndigits: None = None) -> _T: ...
-@overload
-def round(number: _SupportsRound2[_T], ndigits: SupportsIndex) -> _T: ...
-
-# See https://github.com/python/typeshed/pull/6292#discussion_r748875189
-# for why arg 3 of `setattr` should be annotated with `Any` and not `object`
-def setattr(obj: object, name: str, value: Any, /) -> None: ...
-@overload
-def sorted(
-    iterable: Iterable[SupportsRichComparisonT], /, *, key: None = None, reverse: bool = False
-) -> list[SupportsRichComparisonT]: ...
-@overload
-def sorted(iterable: Iterable[_T], /, *, key: Callable[[_T], SupportsRichComparison], reverse: bool = False) -> list[_T]: ...
-
-_AddableT1 = TypeVar("_AddableT1", bound=SupportsAdd[Any, Any])
-_AddableT2 = TypeVar("_AddableT2", bound=SupportsAdd[Any, Any])
-
-class _SupportsSumWithNoDefaultGiven(SupportsAdd[Any, Any], SupportsRAdd[int, Any], Protocol): ...
-
-_SupportsSumNoDefaultT = TypeVar("_SupportsSumNoDefaultT", bound=_SupportsSumWithNoDefaultGiven)
-
-# In general, the return type of `x + x` is *not* guaranteed to be the same type as x.
-# However, we can't express that in the stub for `sum()`
-# without creating many false-positive errors (see #7578).
-# Instead, we special-case the most common examples of this: bool and literal integers.
-@overload
-def sum(iterable: Iterable[bool | _LiteralInteger], /, start: int = 0) -> int: ...  # type: ignore[overload-overlap]
-@overload
-def sum(iterable: Iterable[_SupportsSumNoDefaultT], /) -> _SupportsSumNoDefaultT | Literal[0]: ...
-@overload
-def sum(iterable: Iterable[_AddableT1], /, start: _AddableT2) -> _AddableT1 | _AddableT2: ...
-
-# The argument to `vars()` has to have a `__dict__` attribute, so the second overload can't be annotated with `object`
-# (A "SupportsDunderDict" protocol doesn't work)
-# Use a type: ignore to make complaints about overlapping overloads go away
-@overload
-def vars(object: type, /) -> types.MappingProxyType[str, Any]: ...  # type: ignore[overload-overlap]
-@overload
-def vars(object: Any = ..., /) -> dict[str, Any]: ...
-
-class zip(Iterator[_T_co]):
-    if sys.version_info >= (3, 10):
-        @overload
-        def __new__(cls, *, strict: bool = ...) -> zip[Any]: ...
-        @overload
-        def __new__(cls, iter1: Iterable[_T1], /, *, strict: bool = ...) -> zip[tuple[_T1]]: ...
-        @overload
-        def __new__(cls, iter1: Iterable[_T1], iter2: Iterable[_T2], /, *, strict: bool = ...) -> zip[tuple[_T1, _T2]]: ...
-        @overload
-        def __new__(
-            cls, iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], /, *, strict: bool = ...
-        ) -> zip[tuple[_T1, _T2, _T3]]: ...
-        @overload
-        def __new__(
-            cls, iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], iter4: Iterable[_T4], /, *, strict: bool = ...
-        ) -> zip[tuple[_T1, _T2, _T3, _T4]]: ...
-        @overload
-        def __new__(
-            cls,
-            iter1: Iterable[_T1],
-            iter2: Iterable[_T2],
-            iter3: Iterable[_T3],
-            iter4: Iterable[_T4],
-            iter5: Iterable[_T5],
-            /,
-            *,
-            strict: bool = ...,
-        ) -> zip[tuple[_T1, _T2, _T3, _T4, _T5]]: ...
-        @overload
-        def __new__(
-            cls,
-            iter1: Iterable[Any],
-            iter2: Iterable[Any],
-            iter3: Iterable[Any],
-            iter4: Iterable[Any],
-            iter5: Iterable[Any],
-            iter6: Iterable[Any],
-            /,
-            *iterables: Iterable[Any],
-            strict: bool = ...,
-        ) -> zip[tuple[Any, ...]]: ...
+      return Token(TT_FLOAT, float(num_str), pos_start, self.pos)
+
+  def make_string(self):
+    string = ''
+    pos_start = self.pos.copy()
+    escape_character = False
+    self.advance()
+
+    escape_characters = {
+      'n': '\n',
+      't': '\t'
+    }
+
+    while self.current_char != None and (self.current_char != '"' or escape_character):
+      if escape_character:
+        string += escape_characters.get(self.current_char, self.current_char)
+      else:
+        if self.current_char == '\\':
+          escape_character = True
+        else:
+          string += self.current_char
+      self.advance()
+      escape_character = False
+    
+    self.advance()
+    return Token(TT_STRING, string, pos_start, self.pos)
+
+  def make_identifier(self):
+    id_str = ''
+    pos_start = self.pos.copy()
+
+    while self.current_char != None and self.current_char in LETTERS_DIGITS + '_':
+      id_str += self.current_char
+      self.advance()
+
+    tok_type = TT_KEYWORD if id_str in KEYWORDS else TT_IDENTIFIER
+    return Token(tok_type, id_str, pos_start, self.pos)
+
+  def make_minus_or_arrow(self):
+    tok_type = TT_MINUS
+    pos_start = self.pos.copy()
+    self.advance()
+
+    if self.current_char == '>':
+      self.advance()
+      tok_type = TT_ARROW
+
+    return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+  def make_not_equals(self):
+    pos_start = self.pos.copy()
+    self.advance()
+
+    if self.current_char == '=':
+      self.advance()
+      return Token(TT_NE, pos_start=pos_start, pos_end=self.pos), None
+
+    self.advance()
+    return None, ExpectedCharError(pos_start, self.pos, "'=' (after '!')")
+  
+  def make_equals(self):
+    tok_type = TT_EQ
+    pos_start = self.pos.copy()
+    self.advance()
+
+    if self.current_char == '=':
+      self.advance()
+      tok_type = TT_EE
+
+    return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+  def make_less_than(self):
+    tok_type = TT_LT
+    pos_start = self.pos.copy()
+    self.advance()
+
+    if self.current_char == '=':
+      self.advance()
+      tok_type = TT_LTE
+
+    return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+  def make_greater_than(self):
+    tok_type = TT_GT
+    pos_start = self.pos.copy()
+    self.advance()
+
+    if self.current_char == '=':
+      self.advance()
+      tok_type = TT_GTE
+
+    return Token(tok_type, pos_start=pos_start, pos_end=self.pos)
+
+  def skip_comment(self):
+    self.advance()
+
+    while self.current_char != '\n':
+      self.advance()
+
+    self.advance()
+
+#######################################
+# NODES
+#######################################
+    
+    
+class NumberNode:
+  def __init__(self, tok):
+    self.tok = tok
+
+    self.pos_start = self.tok.pos_start
+    self.pos_end = self.tok.pos_end
+
+  def __repr__(self):
+    return f'{self.tok}'
+
+class StringNode:
+  def __init__(self, tok):
+    self.tok = tok
+
+    self.pos_start = self.tok.pos_start
+    self.pos_end = self.tok.pos_end
+
+  def __repr__(self):
+    return f'{self.tok}'
+
+class ListNode:
+  def __init__(self, element_nodes, pos_start, pos_end):
+    self.element_nodes = element_nodes
+
+    self.pos_start = pos_start
+    self.pos_end = pos_end
+
+class VarAccessNode:
+  def __init__(self, var_name_tok):
+    self.var_name_tok = var_name_tok
+
+    self.pos_start = self.var_name_tok.pos_start
+    self.pos_end = self.var_name_tok.pos_end
+
+class VarAssignNode:
+  def __init__(self, var_name_tok, value_node):
+    self.var_name_tok = var_name_tok
+    self.value_node = value_node
+
+    self.pos_start = self.var_name_tok.pos_start
+    self.pos_end = self.value_node.pos_end
+
+class BinOpNode:
+  def __init__(self, left_node, op_tok, right_node):
+    self.left_node = left_node
+    self.op_tok = op_tok
+    self.right_node = right_node
+
+    self.pos_start = self.left_node.pos_start
+    self.pos_end = self.right_node.pos_end
+
+  def __repr__(self):
+    return f'({self.left_node}, {self.op_tok}, {self.right_node})'
+
+class UnaryOpNode:
+  def __init__(self, op_tok, node):
+    self.op_tok = op_tok
+    self.node = node
+
+    self.pos_start = self.op_tok.pos_start
+    self.pos_end = node.pos_end
+
+  def __repr__(self):
+    return f'({self.op_tok}, {self.node})'
+
+class IfNode:
+  def __init__(self, cases, else_case):
+    self.cases = cases
+    self.else_case = else_case
+
+    self.pos_start = self.cases[0][0].pos_start
+    self.pos_end = (self.else_case or self.cases[len(self.cases) - 1])[0].pos_end
+
+class ForNode:
+  def __init__(self, var_name_tok, start_value_node, end_value_node, step_value_node, body_node, should_return_null):
+    self.var_name_tok = var_name_tok
+    self.start_value_node = start_value_node
+    self.end_value_node = end_value_node
+    self.step_value_node = step_value_node
+    self.body_node = body_node
+    self.should_return_null = should_return_null
+
+    self.pos_start = self.var_name_tok.pos_start
+    self.pos_end = self.body_node.pos_end
+
+class WhileNode:
+  def __init__(self, condition_node, body_node, should_return_null):
+    self.condition_node = condition_node
+    self.body_node = body_node
+    self.should_return_null = should_return_null
+
+    self.pos_start = self.condition_node.pos_start
+    self.pos_end = self.body_node.pos_end
+
+class FuncDefNode:
+  def __init__(self, var_name_tok, arg_name_toks, body_node, should_auto_return):
+    self.var_name_tok = var_name_tok
+    self.arg_name_toks = arg_name_toks
+    self.body_node = body_node
+    self.should_auto_return = should_auto_return
+
+    if self.var_name_tok:
+      self.pos_start = self.var_name_tok.pos_start
+    elif len(self.arg_name_toks) > 0:
+      self.pos_start = self.arg_name_toks[0].pos_start
     else:
-        @overload
-        def __new__(cls) -> zip[Any]: ...
-        @overload
-        def __new__(cls, iter1: Iterable[_T1], /) -> zip[tuple[_T1]]: ...
-        @overload
-        def __new__(cls, iter1: Iterable[_T1], iter2: Iterable[_T2], /) -> zip[tuple[_T1, _T2]]: ...
-        @overload
-        def __new__(cls, iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], /) -> zip[tuple[_T1, _T2, _T3]]: ...
-        @overload
-        def __new__(
-            cls, iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], iter4: Iterable[_T4], /
-        ) -> zip[tuple[_T1, _T2, _T3, _T4]]: ...
-        @overload
-        def __new__(
-            cls, iter1: Iterable[_T1], iter2: Iterable[_T2], iter3: Iterable[_T3], iter4: Iterable[_T4], iter5: Iterable[_T5], /
-        ) -> zip[tuple[_T1, _T2, _T3, _T4, _T5]]: ...
-        @overload
-        def __new__(
-            cls,
-            iter1: Iterable[Any],
-            iter2: Iterable[Any],
-            iter3: Iterable[Any],
-            iter4: Iterable[Any],
-            iter5: Iterable[Any],
-            iter6: Iterable[Any],
-            /,
-            *iterables: Iterable[Any],
-        ) -> zip[tuple[Any, ...]]: ...
+      self.pos_start = self.body_node.pos_start
 
-    def __iter__(self) -> Self: ...
-    def __next__(self) -> _T_co: ...
+    self.pos_end = self.body_node.pos_end
 
-# Signature of `builtins.__import__` should be kept identical to `importlib.__import__`
-# Return type of `__import__` should be kept the same as return type of `importlib.import_module`
-def __import__(
-    name: str,
-    globals: Mapping[str, object] | None = None,
-    locals: Mapping[str, object] | None = None,
-    fromlist: Sequence[str] = (),
-    level: int = 0,
-) -> types.ModuleType: ...
-def __build_class__(func: Callable[[], CellType | Any], name: str, /, *bases: Any, metaclass: Any = ..., **kwds: Any) -> Any: ...
+class CallNode:
+  def __init__(self, node_to_call, arg_nodes):
+    self.node_to_call = node_to_call
+    self.arg_nodes = arg_nodes
 
-if sys.version_info >= (3, 10):
-    from types import EllipsisType
+    self.pos_start = self.node_to_call.pos_start
 
-    # Backwards compatibility hack for folks who relied on the ellipsis type
-    # existing in typeshed in Python 3.9 and earlier.
-    ellipsis = EllipsisType
+    if len(self.arg_nodes) > 0:
+      self.pos_end = self.arg_nodes[len(self.arg_nodes) - 1].pos_end
+    else:
+      self.pos_end = self.node_to_call.pos_end
 
-    Ellipsis: EllipsisType
+class ReturnNode:
+  def __init__(self, node_to_return, pos_start, pos_end):
+    self.node_to_return = node_to_return
 
-else:
-    # Actually the type of Ellipsis is <type 'ellipsis'>, but since it's
-    # not exposed anywhere under that name, we make it private here.
-    @final
-    @type_check_only
-    class ellipsis: ...
+    self.pos_start = pos_start
+    self.pos_end = pos_end
 
-    Ellipsis: ellipsis
+class ContinueNode:
+  def __init__(self, pos_start, pos_end):
+    self.pos_start = pos_start
+    self.pos_end = pos_end
 
-class BaseException:
-    args: tuple[Any, ...]
-    __cause__: BaseException | None
-    __context__: BaseException | None
-    __suppress_context__: bool
-    __traceback__: TracebackType | None
-    def __init__(self, *args: object) -> None: ...
-    def __new__(cls, *args: Any, **kwds: Any) -> Self: ...
-    def __setstate__(self, state: dict[str, Any] | None, /) -> None: ...
-    def with_traceback(self, tb: TracebackType | None, /) -> Self: ...
-    if sys.version_info >= (3, 11):
-        # only present after add_note() is called
-        __notes__: list[str]
-        def add_note(self, note: str, /) -> None: ...
+class BreakNode:
+  def __init__(self, pos_start, pos_end):
+    self.pos_start = pos_start
+    self.pos_end = pos_end
 
-class GeneratorExit(BaseException): ...
-class KeyboardInterrupt(BaseException): ...
+#######################################
+# PARSE RESULT
+#######################################
 
-class SystemExit(BaseException):
-    code: sys._ExitCode
+class ParseResult:
+  def __init__(self):
+    self.error = None
+    self.node = None
+    self.last_registered_advance_count = 0
+    self.advance_count = 0
+    self.to_reverse_count = 0
 
-class Exception(BaseException): ...
+  def register_advancement(self):
+    self.last_registered_advance_count = 1
+    self.advance_count += 1
 
-class StopIteration(Exception):
-    value: Any
+  def register(self, res):
+    self.last_registered_advance_count = res.advance_count
+    self.advance_count += res.advance_count
+    if res.error: self.error = res.error
+    return res.node
 
-class OSError(Exception):
-    errno: int
-    strerror: str
-    # filename, filename2 are actually str | bytes | None
-    filename: Any
-    filename2: Any
-    if sys.platform == "win32":
-        winerror: int
+  def try_register(self, res):
+    if res.error:
+      self.to_reverse_count = res.advance_count
+      return None
+    return self.register(res)
 
-EnvironmentError = OSError
-IOError = OSError
-if sys.platform == "win32":
-    WindowsError = OSError
+  def success(self, node):
+    self.node = node
+    return self
 
-class ArithmeticError(Exception): ...
-class AssertionError(Exception): ...
+  def failure(self, error):
+    if not self.error or self.last_registered_advance_count == 0:
+      self.error = error
+    return self
 
-class AttributeError(Exception):
-    if sys.version_info >= (3, 10):
-        def __init__(self, *args: object, name: str | None = ..., obj: object = ...) -> None: ...
-        name: str
-        obj: object
+#######################################
+# PARSER
+#######################################
 
-class BufferError(Exception): ...
-class EOFError(Exception): ...
+class Parser:
+  def __init__(self, tokens):
+    self.tokens = tokens
+    self.tok_idx = -1
+    self.advance()
 
-class ImportError(Exception):
-    def __init__(self, *args: object, name: str | None = ..., path: str | None = ...) -> None: ...
-    name: str | None
-    path: str | None
-    msg: str  # undocumented
-    if sys.version_info >= (3, 12):
-        name_from: str | None  # undocumented
+  def advance(self):
+    self.tok_idx += 1
+    self.update_current_tok()
+    return self.current_tok
 
-class LookupError(Exception): ...
-class MemoryError(Exception): ...
+  def reverse(self, amount=1):
+    self.tok_idx -= amount
+    self.update_current_tok()
+    return self.current_tok
 
-class NameError(Exception):
-    if sys.version_info >= (3, 10):
-        def __init__(self, *args: object, name: str | None = ...) -> None: ...
-        name: str
+  def update_current_tok(self):
+    if self.tok_idx >= 0 and self.tok_idx < len(self.tokens):
+      self.current_tok = self.tokens[self.tok_idx]
 
-class ReferenceError(Exception): ...
-class RuntimeError(Exception): ...
+  def parse(self):
+    res = self.statements()
+    if not res.error and self.current_tok.type != TT_EOF:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        "Token cannot appear after previous tokens"
+      ))
+    # store a simple representation for trace
+    if CURRENT_TRACE is not None and res and res.node is not None:
+      try:
+        CURRENT_TRACE.parser['root_repr'] = str(res.node)
+      except Exception:
+        CURRENT_TRACE.parser['root_repr'] = '<unserializable-ast>'
+    return res
 
-class StopAsyncIteration(Exception):
-    value: Any
+  ###################################
 
-class SyntaxError(Exception):
-    msg: str
-    lineno: int | None
-    offset: int | None
-    text: str | None
-    filename: str | None
-    if sys.version_info >= (3, 10):
-        end_lineno: int | None
-        end_offset: int | None
+  def statements(self):
+    res = ParseResult()
+    statements = []
+    pos_start = self.current_tok.pos_start.copy()
 
-class SystemError(Exception): ...
-class TypeError(Exception): ...
-class ValueError(Exception): ...
-class FloatingPointError(ArithmeticError): ...
-class OverflowError(ArithmeticError): ...
-class ZeroDivisionError(ArithmeticError): ...
-class ModuleNotFoundError(ImportError): ...
-class IndexError(LookupError): ...
-class KeyError(LookupError): ...
-class UnboundLocalError(NameError): ...
+    while self.current_tok.type == TT_NEWLINE:
+      res.register_advancement()
+      self.advance()
 
-class BlockingIOError(OSError):
-    characters_written: int
+    statement = res.register(self.statement())
+    if res.error: return res
+    statements.append(statement)
 
-class ChildProcessError(OSError): ...
-class ConnectionError(OSError): ...
-class BrokenPipeError(ConnectionError): ...
-class ConnectionAbortedError(ConnectionError): ...
-class ConnectionRefusedError(ConnectionError): ...
-class ConnectionResetError(ConnectionError): ...
-class FileExistsError(OSError): ...
-class FileNotFoundError(OSError): ...
-class InterruptedError(OSError): ...
-class IsADirectoryError(OSError): ...
-class NotADirectoryError(OSError): ...
-class PermissionError(OSError): ...
-class ProcessLookupError(OSError): ...
-class TimeoutError(OSError): ...
-class NotImplementedError(RuntimeError): ...
-class RecursionError(RuntimeError): ...
-class IndentationError(SyntaxError): ...
-class TabError(IndentationError): ...
-class UnicodeError(ValueError): ...
+    more_statements = True
 
-class UnicodeDecodeError(UnicodeError):
-    encoding: str
-    object: bytes
-    start: int
-    end: int
-    reason: str
-    def __init__(self, encoding: str, object: ReadableBuffer, start: int, end: int, reason: str, /) -> None: ...
+    while True:
+      newline_count = 0
+      while self.current_tok.type == TT_NEWLINE:
+        res.register_advancement()
+        self.advance()
+        newline_count += 1
+      if newline_count == 0:
+        more_statements = False
+      
+      if not more_statements: break
+      statement = res.try_register(self.statement())
+      if not statement:
+        self.reverse(res.to_reverse_count)
+        more_statements = False
+        continue
+      statements.append(statement)
 
-class UnicodeEncodeError(UnicodeError):
-    encoding: str
-    object: str
-    start: int
-    end: int
-    reason: str
-    def __init__(self, encoding: str, object: str, start: int, end: int, reason: str, /) -> None: ...
+    return res.success(ListNode(
+      statements,
+      pos_start,
+      self.current_tok.pos_end.copy()
+    ))
 
-class UnicodeTranslateError(UnicodeError):
-    encoding: None
-    object: str
-    start: int
-    end: int
-    reason: str
-    def __init__(self, object: str, start: int, end: int, reason: str, /) -> None: ...
+  def statement(self):
+    res = ParseResult()
+    pos_start = self.current_tok.pos_start.copy()
 
-class Warning(Exception): ...
-class UserWarning(Warning): ...
-class DeprecationWarning(Warning): ...
-class SyntaxWarning(Warning): ...
-class RuntimeWarning(Warning): ...
-class FutureWarning(Warning): ...
-class PendingDeprecationWarning(Warning): ...
-class ImportWarning(Warning): ...
-class UnicodeWarning(Warning): ...
-class BytesWarning(Warning): ...
-class ResourceWarning(Warning): ...
+    if self.current_tok.matches(TT_KEYWORD, 'return'):
+      res.register_advancement()
+      self.advance()
 
-if sys.version_info >= (3, 10):
-    class EncodingWarning(Warning): ...
+      expr = res.try_register(self.expr())
+      if not expr:
+        self.reverse(res.to_reverse_count)
+      return res.success(ReturnNode(expr, pos_start, self.current_tok.pos_start.copy()))
+    
+    if self.current_tok.matches(TT_KEYWORD, 'continue'):
+      res.register_advancement()
+      self.advance()
+      return res.success(ContinueNode(pos_start, self.current_tok.pos_start.copy()))
+      
+    if self.current_tok.matches(TT_KEYWORD, 'break'):
+      res.register_advancement()
+      self.advance()
+      return res.success(BreakNode(pos_start, self.current_tok.pos_start.copy()))
 
-if sys.version_info >= (3, 11):
-    _BaseExceptionT_co = TypeVar("_BaseExceptionT_co", bound=BaseException, covariant=True, default=BaseException)
-    _BaseExceptionT = TypeVar("_BaseExceptionT", bound=BaseException)
-    _ExceptionT_co = TypeVar("_ExceptionT_co", bound=Exception, covariant=True, default=Exception)
-    _ExceptionT = TypeVar("_ExceptionT", bound=Exception)
+    expr = res.register(self.expr())
+    if res.error:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        "Expected 'return', 'continue', 'break', 'var', 'if', 'for', 'while', 'fun', int, float, identifier, '+', '-', '(', '[' or 'NOT'"
+      ))
+    return res.success(expr)
 
-    # See `check_exception_group.py` for use-cases and comments.
-    class BaseExceptionGroup(BaseException, Generic[_BaseExceptionT_co]):
-        def __new__(cls, message: str, exceptions: Sequence[_BaseExceptionT_co], /) -> Self: ...
-        def __init__(self, message: str, exceptions: Sequence[_BaseExceptionT_co], /) -> None: ...
-        @property
-        def message(self) -> str: ...
-        @property
-        def exceptions(self) -> tuple[_BaseExceptionT_co | BaseExceptionGroup[_BaseExceptionT_co], ...]: ...
-        @overload
-        def subgroup(
-            self, condition: type[_ExceptionT] | tuple[type[_ExceptionT], ...], /
-        ) -> ExceptionGroup[_ExceptionT] | None: ...
-        @overload
-        def subgroup(
-            self, condition: type[_BaseExceptionT] | tuple[type[_BaseExceptionT], ...], /
-        ) -> BaseExceptionGroup[_BaseExceptionT] | None: ...
-        @overload
-        def subgroup(
-            self, condition: Callable[[_BaseExceptionT_co | Self], bool], /
-        ) -> BaseExceptionGroup[_BaseExceptionT_co] | None: ...
-        @overload
-        def split(
-            self, condition: type[_ExceptionT] | tuple[type[_ExceptionT], ...], /
-        ) -> tuple[ExceptionGroup[_ExceptionT] | None, BaseExceptionGroup[_BaseExceptionT_co] | None]: ...
-        @overload
-        def split(
-            self, condition: type[_BaseExceptionT] | tuple[type[_BaseExceptionT], ...], /
-        ) -> tuple[BaseExceptionGroup[_BaseExceptionT] | None, BaseExceptionGroup[_BaseExceptionT_co] | None]: ...
-        @overload
-        def split(
-            self, condition: Callable[[_BaseExceptionT_co | Self], bool], /
-        ) -> tuple[BaseExceptionGroup[_BaseExceptionT_co] | None, BaseExceptionGroup[_BaseExceptionT_co] | None]: ...
-        # In reality it is `NonEmptySequence`:
-        @overload
-        def derive(self, excs: Sequence[_ExceptionT], /) -> ExceptionGroup[_ExceptionT]: ...
-        @overload
-        def derive(self, excs: Sequence[_BaseExceptionT], /) -> BaseExceptionGroup[_BaseExceptionT]: ...
-        def __class_getitem__(cls, item: Any, /) -> GenericAlias: ...
+  def expr(self):
+    res = ParseResult()
 
-    class ExceptionGroup(BaseExceptionGroup[_ExceptionT_co], Exception):
-        def __new__(cls, message: str, exceptions: Sequence[_ExceptionT_co], /) -> Self: ...
-        def __init__(self, message: str, exceptions: Sequence[_ExceptionT_co], /) -> None: ...
-        @property
-        def exceptions(self) -> tuple[_ExceptionT_co | ExceptionGroup[_ExceptionT_co], ...]: ...
-        # We accept a narrower type, but that's OK.
-        @overload  # type: ignore[override]
-        def subgroup(
-            self, condition: type[_ExceptionT] | tuple[type[_ExceptionT], ...], /
-        ) -> ExceptionGroup[_ExceptionT] | None: ...
-        @overload
-        def subgroup(self, condition: Callable[[_ExceptionT_co | Self], bool], /) -> ExceptionGroup[_ExceptionT_co] | None: ...
-        @overload  # type: ignore[override]
-        def split(
-            self, condition: type[_ExceptionT] | tuple[type[_ExceptionT], ...], /
-        ) -> tuple[ExceptionGroup[_ExceptionT] | None, ExceptionGroup[_ExceptionT_co] | None]: ...
-        @overload
-        def split(
-            self, condition: Callable[[_ExceptionT_co | Self], bool], /
-        ) -> tuple[ExceptionGroup[_ExceptionT_co] | None, ExceptionGroup[_ExceptionT_co] | None]: ...
+    if self.current_tok.matches(TT_KEYWORD, 'var'):
+      res.register_advancement()
+      self.advance()
 
-if sys.version_info >= (3, 13):
-    class PythonFinalizationError(RuntimeError): ...
+      if self.current_tok.type != TT_IDENTIFIER:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          "Expected identifier"
+        ))
+
+      var_name = self.current_tok
+      res.register_advancement()
+      self.advance()
+
+      if self.current_tok.type != TT_EQ:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          "Expected '='"
+        ))
+
+      res.register_advancement()
+      self.advance()
+      expr = res.register(self.expr())
+      if res.error: return res
+      return res.success(VarAssignNode(var_name, expr))
+
+    node = res.register(self.bin_op(self.comp_expr, ((TT_KEYWORD, 'and'), (TT_KEYWORD, 'or'))))
+
+    if res.error:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        "Expected 'var', 'if', 'for', 'while', 'fun', int, float, identifier, '+', '-', '(', '[' or 'not'"
+      ))
+
+    return res.success(node)
+
+  def comp_expr(self):
+    res = ParseResult()
+
+    if self.current_tok.matches(TT_KEYWORD, 'not'):
+      op_tok = self.current_tok
+      res.register_advancement()
+      self.advance()
+
+      node = res.register(self.comp_expr())
+      if res.error: return res
+      return res.success(UnaryOpNode(op_tok, node))
+    
+    node = res.register(self.bin_op(self.arith_expr, (TT_EE, TT_NE, TT_LT, TT_GT, TT_LTE, TT_GTE)))
+    
+    if res.error:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        "Expected int, float, identifier, '+', '-', '(', '[', 'if', 'for', 'while', 'fun' or 'not'"
+      ))
+
+    return res.success(node)
+
+  def arith_expr(self):
+    return self.bin_op(self.term, (TT_PLUS, TT_MINUS))
+
+  def term(self):
+    return self.bin_op(self.factor, (TT_MUL, TT_DIV))
+
+  def factor(self):
+    res = ParseResult()
+    tok = self.current_tok
+
+    if tok.type in (TT_PLUS, TT_MINUS):
+      res.register_advancement()
+      self.advance()
+      factor = res.register(self.factor())
+      if res.error: return res
+      return res.success(UnaryOpNode(tok, factor))
+
+    return self.power()
+
+  def power(self):
+    return self.bin_op(self.call, (TT_POW, ), self.factor)
+
+  def call(self):
+    res = ParseResult()
+    atom = res.register(self.atom())
+    if res.error: return res
+
+    if self.current_tok.type == TT_LPAREN:
+      res.register_advancement()
+      self.advance()
+      arg_nodes = []
+
+      if self.current_tok.type == TT_RPAREN:
+        res.register_advancement()
+        self.advance()
+      else:
+        arg_nodes.append(res.register(self.expr()))
+        if res.error:
+          return res.failure(InvalidSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end,
+            "Expected ')', 'var', 'if', 'for', 'while', 'fun', int, float, identifier, '+', '-', '(', '[' or 'NOT'"
+          ))
+
+        while self.current_tok.type == TT_COMMA:
+          res.register_advancement()
+          self.advance()
+
+          arg_nodes.append(res.register(self.expr()))
+          if res.error: return res
+
+        if self.current_tok.type != TT_RPAREN:
+          return res.failure(InvalidSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end,
+            f"Expected ',' or ')'"
+          ))
+
+        res.register_advancement()
+        self.advance()
+      return res.success(CallNode(atom, arg_nodes))
+    return res.success(atom)
+
+  def atom(self):
+    res = ParseResult()
+    tok = self.current_tok
+
+    if tok.type in (TT_INT, TT_FLOAT):
+      res.register_advancement()
+      self.advance()
+      return res.success(NumberNode(tok))
+
+    elif tok.type == TT_STRING:
+      res.register_advancement()
+      self.advance()
+      return res.success(StringNode(tok))
+
+    elif tok.type == TT_IDENTIFIER:
+      res.register_advancement()
+      self.advance()
+      return res.success(VarAccessNode(tok))
+
+    elif tok.type == TT_LPAREN:
+      res.register_advancement()
+      self.advance()
+      expr = res.register(self.expr())
+      if res.error: return res
+      if self.current_tok.type == TT_RPAREN:
+        res.register_advancement()
+        self.advance()
+        return res.success(expr)
+      else:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          "Expected ')'"
+        ))
+
+    elif tok.type == TT_LSQUARE:
+      list_expr = res.register(self.list_expr())
+      if res.error: return res
+      return res.success(list_expr)
+    
+    elif tok.matches(TT_KEYWORD, 'if'):
+      if_expr = res.register(self.if_expr())
+      if res.error: return res
+      return res.success(if_expr)
+
+    elif tok.matches(TT_KEYWORD, 'for'):
+      for_expr = res.register(self.for_expr())
+      if res.error: return res
+      return res.success(for_expr)
+
+    elif tok.matches(TT_KEYWORD, 'while'):
+      while_expr = res.register(self.while_expr())
+      if res.error: return res
+      return res.success(while_expr)
+
+    elif tok.matches(TT_KEYWORD, 'fun'):
+      func_def = res.register(self.func_def())
+      if res.error: return res
+      return res.success(func_def)
+
+    return res.failure(InvalidSyntaxError(
+      tok.pos_start, tok.pos_end,
+      "Expected int, float, identifier, '+', '-', '(', '[', if', 'for', 'while', 'fun'"
+    ))
+
+  def list_expr(self):
+    res = ParseResult()
+    element_nodes = []
+    pos_start = self.current_tok.pos_start.copy()
+
+    if self.current_tok.type != TT_LSQUARE:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected '['"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_RSQUARE:
+      res.register_advancement()
+      self.advance()
+    else:
+      element_nodes.append(res.register(self.expr()))
+      if res.error:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          "Expected ']', 'var', 'if', 'for', 'while', 'fun', int, float, identifier, '+', '-', '(', '[' or 'not'"
+        ))
+
+      while self.current_tok.type == TT_COMMA:
+        res.register_advancement()
+        self.advance()
+
+        element_nodes.append(res.register(self.expr()))
+        if res.error: return res
+
+      if self.current_tok.type != TT_RSQUARE:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected ',' or ']'"
+        ))
+
+      res.register_advancement()
+      self.advance()
+
+    return res.success(ListNode(
+      element_nodes,
+      pos_start,
+      self.current_tok.pos_end.copy()
+    ))
+
+  def if_expr(self):
+    res = ParseResult()
+    all_cases = res.register(self.if_expr_cases('if'))
+    if res.error: return res
+    cases, else_case = all_cases
+    return res.success(IfNode(cases, else_case))
+
+  def if_expr_b(self):
+    return self.if_expr_cases('elif')
+    
+  def if_expr_c(self):
+    res = ParseResult()
+    else_case = None
+
+    if self.current_tok.matches(TT_KEYWORD, 'else'):
+      res.register_advancement()
+      self.advance()
+
+      if self.current_tok.type == TT_NEWLINE:
+        res.register_advancement()
+        self.advance()
+
+        statements = res.register(self.statements())
+        if res.error: return res
+        else_case = (statements, True)
+
+        if self.current_tok.matches(TT_KEYWORD, 'end'):
+          res.register_advancement()
+          self.advance()
+        else:
+          return res.failure(InvalidSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end,
+            "Expected 'END'"
+          ))
+      else:
+        expr = res.register(self.statement())
+        if res.error: return res
+        else_case = (expr, False)
+
+    return res.success(else_case)
+
+  def if_expr_b_or_c(self):
+    res = ParseResult()
+    cases, else_case = [], None
+
+    if self.current_tok.matches(TT_KEYWORD, 'elif'):
+      all_cases = res.register(self.if_expr_b())
+      if res.error: return res
+      cases, else_case = all_cases
+    else:
+      else_case = res.register(self.if_expr_c())
+      if res.error: return res
+    
+    return res.success((cases, else_case))
+
+  def if_expr_cases(self, case_keyword):
+    res = ParseResult()
+    cases = []
+    else_case = None
+
+    if not self.current_tok.matches(TT_KEYWORD, case_keyword):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected '{case_keyword}'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    condition = res.register(self.expr())
+    if res.error: return res
+
+    if not self.current_tok.matches(TT_KEYWORD, 'then'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'THEN'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_NEWLINE:
+      res.register_advancement()
+      self.advance()
+
+      statements = res.register(self.statements())
+      if res.error: return res
+      cases.append((condition, statements, True))
+
+      if self.current_tok.matches(TT_KEYWORD, 'end'):
+        res.register_advancement()
+        self.advance()
+      else:
+        all_cases = res.register(self.if_expr_b_or_c())
+        if res.error: return res
+        new_cases, else_case = all_cases
+        cases.extend(new_cases)
+    else:
+      expr = res.register(self.statement())
+      if res.error: return res
+      cases.append((condition, expr, False))
+
+      all_cases = res.register(self.if_expr_b_or_c())
+      if res.error: return res
+      new_cases, else_case = all_cases
+      cases.extend(new_cases)
+
+    return res.success((cases, else_case))
+
+  def for_expr(self):
+    res = ParseResult()
+
+    if not self.current_tok.matches(TT_KEYWORD, 'for'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'FOR'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type != TT_IDENTIFIER:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected identifier"
+      ))
+
+    var_name = self.current_tok
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type != TT_EQ:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected '='"
+      ))
+    
+    res.register_advancement()
+    self.advance()
+
+    start_value = res.register(self.expr())
+    if res.error: return res
+
+    if not self.current_tok.matches(TT_KEYWORD, 'to'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'TO'"
+      ))
+    
+    res.register_advancement()
+    self.advance()
+
+    end_value = res.register(self.expr())
+    if res.error: return res
+
+    if self.current_tok.matches(TT_KEYWORD, 'step'):
+      res.register_advancement()
+      self.advance()
+
+      step_value = res.register(self.expr())
+      if res.error: return res
+    else:
+      step_value = None
+
+    if not self.current_tok.matches(TT_KEYWORD, 'then'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'THEN'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_NEWLINE:
+      res.register_advancement()
+      self.advance()
+
+      body = res.register(self.statements())
+      if res.error: return res
+
+      if not self.current_tok.matches(TT_KEYWORD, 'end'):
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected 'END'"
+        ))
+
+      res.register_advancement()
+      self.advance()
+
+      return res.success(ForNode(var_name, start_value, end_value, step_value, body, True))
+    
+    body = res.register(self.statement())
+    if res.error: return res
+
+    return res.success(ForNode(var_name, start_value, end_value, step_value, body, False))
+
+  def while_expr(self):
+    res = ParseResult()
+
+    if not self.current_tok.matches(TT_KEYWORD, 'while'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'WHILE'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    condition = res.register(self.expr())
+    if res.error: return res
+
+    if not self.current_tok.matches(TT_KEYWORD, 'then'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'THEN'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_NEWLINE:
+      res.register_advancement()
+      self.advance()
+
+      body = res.register(self.statements())
+      if res.error: return res
+
+      if not self.current_tok.matches(TT_KEYWORD, 'end'):
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected 'END'"
+        ))
+
+      res.register_advancement()
+      self.advance()
+
+      return res.success(WhileNode(condition, body, True))
+    
+    body = res.register(self.statement())
+    if res.error: return res
+
+    return res.success(WhileNode(condition, body, False))
+
+  def func_def(self):
+    res = ParseResult()
+
+    if not self.current_tok.matches(TT_KEYWORD, 'fun'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'fun'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_IDENTIFIER:
+      var_name_tok = self.current_tok
+      res.register_advancement()
+      self.advance()
+      if self.current_tok.type != TT_LPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected '('"
+        ))
+    else:
+      var_name_tok = None
+      if self.current_tok.type != TT_LPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected identifier or '('"
+        ))
+    
+    res.register_advancement()
+    self.advance()
+    arg_name_toks = []
+
+    if self.current_tok.type == TT_IDENTIFIER:
+      arg_name_toks.append(self.current_tok)
+      res.register_advancement()
+      self.advance()
+      
+      while self.current_tok.type == TT_COMMA:
+        res.register_advancement()
+        self.advance()
+
+        if self.current_tok.type != TT_IDENTIFIER:
+          return res.failure(InvalidSyntaxError(
+            self.current_tok.pos_start, self.current_tok.pos_end,
+            f"Expected identifier"
+          ))
+
+        arg_name_toks.append(self.current_tok)
+        res.register_advancement()
+        self.advance()
+      
+      if self.current_tok.type != TT_RPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected ',' or ')'"
+        ))
+    else:
+      if self.current_tok.type != TT_RPAREN:
+        return res.failure(InvalidSyntaxError(
+          self.current_tok.pos_start, self.current_tok.pos_end,
+          f"Expected identifier or ')'"
+        ))
+
+    res.register_advancement()
+    self.advance()
+
+    if self.current_tok.type == TT_ARROW:
+      res.register_advancement()
+      self.advance()
+
+      body = res.register(self.expr())
+      if res.error: return res
+
+      return res.success(FuncDefNode(
+        var_name_tok,
+        arg_name_toks,
+        body,
+        True
+      ))
+    
+    if self.current_tok.type != TT_NEWLINE:
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected '->' or NEWLINE"
+      ))
+
+    res.register_advancement()
+    self.advance()
+
+    body = res.register(self.statements())
+    if res.error: return res
+
+    if not self.current_tok.matches(TT_KEYWORD, 'end'):
+      return res.failure(InvalidSyntaxError(
+        self.current_tok.pos_start, self.current_tok.pos_end,
+        f"Expected 'END'"
+      ))
+
+    res.register_advancement()
+    self.advance()
+    
+    return res.success(FuncDefNode(
+      var_name_tok,
+      arg_name_toks,
+      body,
+      False
+    ))
+
+  ###################################
+
+  def bin_op(self, func_a, ops, func_b=None):
+    if func_b == None:
+      func_b = func_a
+    
+    res = ParseResult()
+    left = res.register(func_a())
+    if res.error: return res
+
+    while self.current_tok.type in ops or (self.current_tok.type, self.current_tok.value) in ops:
+      op_tok = self.current_tok
+      res.register_advancement()
+      self.advance()
+      right = res.register(func_b())
+      if res.error: return res
+      left = BinOpNode(left, op_tok, right)
+
+    return res.success(left)
+
+#######################################
+# RUNTIME RESULT
+#######################################
+
+class RTResult:
+  def __init__(self):
+    self.reset()
+
+  def reset(self):
+    self.value = None
+    self.error = None
+    self.func_return_value = None
+    self.loop_should_continue = False
+    self.loop_should_break = False
+
+  def register(self, res):
+    self.error = res.error
+    self.func_return_value = res.func_return_value
+    self.loop_should_continue = res.loop_should_continue
+    self.loop_should_break = res.loop_should_break
+    return res.value
+
+  def success(self, value):
+    self.reset()
+    self.value = value
+    return self
+
+  def success_return(self, value):
+    self.reset()
+    self.func_return_value = value
+    return self
+  
+  def success_continue(self):
+    self.reset()
+    self.loop_should_continue = True
+    return self
+
+  def success_break(self):
+    self.reset()
+    self.loop_should_break = True
+    return self
+
+  def failure(self, error):
+    self.reset()
+    self.error = error
+    return self
+
+  def should_return(self):
+    # Note: this will allow you to continue and break outside the current function
+    return (
+      self.error or
+      self.func_return_value or
+      self.loop_should_continue or
+      self.loop_should_break
+    )
+
+#######################################
+# VALUES
+#######################################
+
+class Value:
+  def __init__(self):
+    self.set_pos()
+    self.set_context()
+
+  def set_pos(self, pos_start=None, pos_end=None):
+    self.pos_start = pos_start
+    self.pos_end = pos_end
+    return self
+
+  def set_context(self, context=None):
+    self.context = context
+    return self
+
+  def added_to(self, other):
+    return None, self.illegal_operation(other)
+
+  def subbed_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def multed_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def dived_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def powed_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_eq(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_ne(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_lt(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_gt(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_lte(self, other):
+    return None, self.illegal_operation(other)
+
+  def get_comparison_gte(self, other):
+    return None, self.illegal_operation(other)
+
+  def anded_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def ored_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def notted(self, other):
+    return None, self.illegal_operation(other)
+
+  def execute(self, args):
+    return RTResult().failure(self.illegal_operation())
+
+  def copy(self):
+    raise Exception('No copy method defined')
+
+  def is_true(self):
+    return False
+
+  def illegal_operation(self, other=None):
+    if not other: other = self
+    return RTError(
+      self.pos_start, other.pos_end,
+      'Illegal operation',
+      self.context
+    )
+
+class Number(Value):
+  def __init__(self, value):
+    super().__init__()
+    self.value = value
+
+  def added_to(self, other):
+    if isinstance(other, Number):
+      return Number(self.value + other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def subbed_by(self, other):
+    if isinstance(other, Number):
+      return Number(self.value - other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def multed_by(self, other):
+    if isinstance(other, Number):
+      return Number(self.value * other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def dived_by(self, other):
+    if isinstance(other, Number):
+      if other.value == 0:
+        return None, RTError(
+          other.pos_start, other.pos_end,
+          'Division by zero',
+          self.context
+        )
+
+      return Number(self.value / other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def powed_by(self, other):
+    if isinstance(other, Number):
+      return Number(self.value ** other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_eq(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value == other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_ne(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value != other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_lt(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value < other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_gt(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value > other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_lte(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value <= other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def get_comparison_gte(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value >= other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def anded_by(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value and other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def ored_by(self, other):
+    if isinstance(other, Number):
+      return Number(int(self.value or other.value)).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def notted(self):
+    return Number(1 if self.value == 0 else 0).set_context(self.context), None
+
+  def copy(self):
+    copy = Number(self.value)
+    copy.set_pos(self.pos_start, self.pos_end)
+    copy.set_context(self.context)
+    return copy
+
+  def is_true(self):
+    return self.value != 0
+
+  def __str__(self):
+    return str(self.value)
+  
+  def __repr__(self):
+    return str(self.value)
+
+Number.null = Number(0)
+Number.false = Number(0)
+Number.true = Number(1)
+Number.math_PI = Number(math.pi)
+
+class String(Value):
+  def __init__(self, value):
+    super().__init__()
+    self.value = value
+
+  def added_to(self, other):
+    if isinstance(other, String):
+      return String(self.value + other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def multed_by(self, other):
+    if isinstance(other, Number):
+      return String(self.value * other.value).set_context(self.context), None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def is_true(self):
+    return len(self.value) > 0
+
+  def copy(self):
+    copy = String(self.value)
+    copy.set_pos(self.pos_start, self.pos_end)
+    copy.set_context(self.context)
+    return copy
+
+  def __str__(self):
+    return self.value
+
+  def __repr__(self):
+    return f'"{self.value}"'
+
+class List(Value):
+  def __init__(self, elements):
+    super().__init__()
+    self.elements = elements
+
+  def added_to(self, other):
+    new_list = self.copy()
+    new_list.elements.append(other)
+    return new_list, None
+
+  def subbed_by(self, other):
+    if isinstance(other, Number):
+      new_list = self.copy()
+      try:
+        new_list.elements.pop(other.value)
+        return new_list, None
+      except:
+        return None, RTError(
+          other.pos_start, other.pos_end,
+          'Element at this index could not be removed from list because index is out of bounds',
+          self.context
+        )
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def multed_by(self, other):
+    if isinstance(other, List):
+      new_list = self.copy()
+      new_list.elements.extend(other.elements)
+      return new_list, None
+    else:
+      return None, Value.illegal_operation(self, other)
+
+  def dived_by(self, other):
+    if isinstance(other, Number):
+      try:
+        return self.elements[other.value], None
+      except:
+        return None, RTError(
+          other.pos_start, other.pos_end,
+          'Element at this index could not be retrieved from list because index is out of bounds',
+          self.context
+        )
+    else:
+      return None, Value.illegal_operation(self, other)
+  
+  def copy(self):
+    copy = List(self.elements)
+    copy.set_pos(self.pos_start, self.pos_end)
+    copy.set_context(self.context)
+    return copy
+
+  def __str__(self):
+    return ", ".join([str(x) for x in self.elements])
+
+  def __repr__(self):
+    return f'[{", ".join([repr(x) for x in self.elements])}]'
+
+class BaseFunction(Value):
+  def __init__(self, name):
+    super().__init__()
+    self.name = name or "<anonymous>"
+
+  def generate_new_context(self):
+    new_context = Context(self.name, self.context, self.pos_start)
+    new_context.symbol_table = SymbolTable(new_context.parent.symbol_table)
+    return new_context
+
+  def check_args(self, arg_names, args):
+    res = RTResult()
+
+    if len(args) > len(arg_names):
+      return res.failure(RTError(
+        self.pos_start, self.pos_end,
+        f"{len(args) - len(arg_names)} too many args passed into {self}",
+        self.context
+      ))
+    
+    if len(args) < len(arg_names):
+      return res.failure(RTError(
+        self.pos_start, self.pos_end,
+        f"{len(arg_names) - len(args)} too few args passed into {self}",
+        self.context
+      ))
+
+    return res.success(None)
+
+  def populate_args(self, arg_names, args, exec_ctx):
+    for i in range(len(args)):
+      arg_name = arg_names[i]
+      arg_value = args[i]
+      arg_value.set_context(exec_ctx)
+      exec_ctx.symbol_table.set(arg_name, arg_value)
+
+  def check_and_populate_args(self, arg_names, args, exec_ctx):
+    res = RTResult()
+    res.register(self.check_args(arg_names, args))
+    if res.should_return(): return res
+    self.populate_args(arg_names, args, exec_ctx)
+    return res.success(None)
+
+class Function(BaseFunction):
+  def __init__(self, name, body_node, arg_names, should_auto_return):
+    super().__init__(name)
+    self.body_node = body_node
+    self.arg_names = arg_names
+    self.should_auto_return = should_auto_return
+
+  def execute(self, args):
+    res = RTResult()
+    interpreter = Interpreter()
+    exec_ctx = self.generate_new_context()
+
+    res.register(self.check_and_populate_args(self.arg_names, args, exec_ctx))
+    if res.should_return(): return res
+
+    value = res.register(interpreter.visit(self.body_node, exec_ctx))
+    if res.should_return() and res.func_return_value == None: return res
+
+    ret_value = (value if self.should_auto_return else None) or res.func_return_value or Number.null
+    return res.success(ret_value)
+
+  def copy(self):
+    copy = Function(self.name, self.body_node, self.arg_names, self.should_auto_return)
+    copy.set_context(self.context)
+    copy.set_pos(self.pos_start, self.pos_end)
+    return copy
+
+  def __repr__(self):
+    return f"<function {self.name}>"
+
+class BuiltInFunction(BaseFunction):
+  def __init__(self, name):
+    super().__init__(name)
+
+  def execute(self, args):
+    res = RTResult()
+    exec_ctx = self.generate_new_context()
+
+    method_name = f'execute_{self.name}'
+    method = getattr(self, method_name, self.no_visit_method)
+    # Flexible arity support: methods may define min_args/max_args; defaults to exact len(arg_names)
+    arg_names = getattr(method, 'arg_names', []) or []
+    min_args = getattr(method, 'min_args', len(arg_names))
+    max_args = getattr(method, 'max_args', len(arg_names))
+    if len(args) < min_args:
+      return res.failure(RTError(
+        self.pos_start, self.pos_end,
+        f"{min_args - len(args)} too few args passed into {self}",
+        self.context
+      ))
+    if len(args) > max_args:
+      return res.failure(RTError(
+        self.pos_start, self.pos_end,
+        f"{len(args) - max_args} too many args passed into {self}",
+        self.context
+      ))
+    # Populate only provided args
+    for i in range(min(len(args), len(arg_names))):
+      arg_value = args[i]
+      arg_value.set_context(exec_ctx)
+      exec_ctx.symbol_table.set(arg_names[i], arg_value)
+
+    return_value = res.register(method(exec_ctx))
+    if res.should_return(): return res
+    return res.success(return_value)
+  
+  def no_visit_method(self, node, context):
+    raise Exception(f'No execute_{self.name} method defined')
+
+  def copy(self):
+    copy = BuiltInFunction(self.name)
+    copy.set_context(self.context)
+    copy.set_pos(self.pos_start, self.pos_end)
+    return copy
+
+  def __repr__(self):
+    return f"<built-in function {self.name}>"
+
+  #####################################
+
+  def execute_print(self, exec_ctx):
+    print(str(exec_ctx.symbol_table.get('value')))
+    return RTResult().success(Number.null)
+  execute_print.arg_names = ['value']
+  
+  def execute_print_ret(self, exec_ctx):
+    return RTResult().success(String(str(exec_ctx.symbol_table.get('value'))))
+  execute_print_ret.arg_names = ['value']
+
+  def execute_pyexe(self, exec_ctx):
+    print(str(exec_ctx.symbol_table.get('value')))
+    exec(str(exec_ctx.symbol_table.get('value')))
+    return RTResult().success(String('1'))
+  execute_pyexe.arg_names = ['value']
+  
+  def execute_input(self, exec_ctx):
+    text = input()
+    return RTResult().success(String(text))
+  execute_input.arg_names = []
+
+  def execute_input_int(self, exec_ctx):
+    while True:
+      text = input()
+      try:
+        number = int(text)
+        break
+      except ValueError:
+        print(f"'{text}' must be an integer. Try again!")
+    return RTResult().success(Number(number))
+  execute_input_int.arg_names = []
+
+  def execute_clear(self, exec_ctx):
+    os.system('cls' if os.name == 'nt' else 'cls') 
+    return RTResult().success(Number.null)
+  execute_clear.arg_names = []
+
+  def execute_is_number(self, exec_ctx):
+    is_number = isinstance(exec_ctx.symbol_table.get("value"), Number)
+    return RTResult().success(Number.true if is_number else Number.false)
+  execute_is_number.arg_names = ["value"]
+
+  def execute_is_string(self, exec_ctx):
+    is_number = isinstance(exec_ctx.symbol_table.get("value"), String)
+    return RTResult().success(Number.true if is_number else Number.false)
+  execute_is_string.arg_names = ["value"]
+
+  def execute_is_list(self, exec_ctx):
+    is_number = isinstance(exec_ctx.symbol_table.get("value"), List)
+    return RTResult().success(Number.true if is_number else Number.false)
+  execute_is_list.arg_names = ["value"]
+
+  def execute_is_function(self, exec_ctx):
+    is_number = isinstance(exec_ctx.symbol_table.get("value"), BaseFunction)
+    return RTResult().success(Number.true if is_number else Number.false)
+  execute_is_function.arg_names = ["value"]
+
+  def execute_append(self, exec_ctx):
+    list_ = exec_ctx.symbol_table.get("list")
+    value = exec_ctx.symbol_table.get("value")
+
+    if not isinstance(list_, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be list",
+        exec_ctx
+      ))
+
+    list_.elements.append(value)
+    return RTResult().success(Number.null)
+  execute_append.arg_names = ["list", "value"]
+
+  def execute_pop(self, exec_ctx):
+    list_ = exec_ctx.symbol_table.get("list")
+    index = exec_ctx.symbol_table.get("index")
+
+    if not isinstance(list_, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be list",
+        exec_ctx
+      ))
+
+    if not isinstance(index, Number):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be number",
+        exec_ctx
+      ))
+
+    try:
+      element = list_.elements.pop(index.value)
+    except:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        'Element at this index could not be removed from list because index is out of bounds',
+        exec_ctx
+      ))
+    return RTResult().success(element)
+  execute_pop.arg_names = ["list", "index"]
+
+  def execute_extend(self, exec_ctx):
+    listA = exec_ctx.symbol_table.get("listA")
+    listB = exec_ctx.symbol_table.get("listB")
+
+    if not isinstance(listA, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be list",
+        exec_ctx
+      ))
+
+    if not isinstance(listB, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be list",
+        exec_ctx
+      ))
+
+    listA.elements.extend(listB.elements)
+    return RTResult().success(Number.null)
+  execute_extend.arg_names = ["listA", "listB"]
+
+  def execute_len(self, exec_ctx):
+    list_ = exec_ctx.symbol_table.get("list")
+
+    if not isinstance(list_, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Argument must be list",
+        exec_ctx
+      ))
+
+    return RTResult().success(Number(len(list_.elements)))
+  execute_len.arg_names = ["list"]
+
+  def execute_pow_mine(self, exec_ctx):
+    data_val = exec_ctx.symbol_table.get("data")
+    diff_val = exec_ctx.symbol_table.get("difficulty")
+    if not isinstance(data_val, String):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be string",
+        exec_ctx
+      ))
+    if not isinstance(diff_val, Number):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be number",
+        exec_ctx
+      ))
+    difficulty_bits = int(diff_val.value)
+    if difficulty_bits < 0 or difficulty_bits > 256:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Difficulty must be between 0 and 256 bits",
+        exec_ctx
+      ))
+    # Rust-like PoW: leading zero bits target
+    # target = 2^(256 - difficulty)
+    if difficulty_bits == 0:
+      target = 1 << 256
+    else:
+      target = 1 << (256 - difficulty_bits)
+    max_nonce = 1000000  # safety cap
+    start_time = time.time()
+    found_nonce = -1
+    found_hash = ''
+    iterations = 0
+    data_bytes = data_val.value.encode('utf-8')
+    # Progress settings: aim ~30 updates max
+    progress_interval = max(1, max_nonce // 30)
+    print(f"PoW start: bits={difficulty_bits}, max_nonce={max_nonce}")
+    for nonce in range(max_nonce):
+      iterations = nonce + 1
+      content = data_bytes + str(nonce).encode('utf-8')
+      digest_bytes = hashlib.sha256(content).digest()
+      digest_int = int.from_bytes(digest_bytes, 'big')
+      if digest_int < target:
+        found_nonce = nonce
+        found_hash = digest_bytes.hex()
+        break
+      if iterations % progress_interval == 0:
+        elapsed_so_far = time.time() - start_time
+        rate = iterations / elapsed_so_far if elapsed_so_far > 0 else 0.0
+        print(f"PoW progress: iter={iterations}, rate={int(rate)} H/s")
+    elapsed = time.time() - start_time
+    if found_nonce == -1:
+      # return [-1, last_hash, iterations, elapsed]
+      if iterations:
+        rate = iterations / elapsed if elapsed > 0 else 0.0
+      else:
+        rate = 0.0
+      print(f"PoW not found within max_nonce. iterations={iterations}, elapsed={elapsed:.3f}s, rate={int(rate)} H/s")
+      print(f"PoW result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {digest_bytes.hex()}, {iterations}, {elapsed:.3f}]")
+      return RTResult().success(List([
+        Number(found_nonce),
+        String(digest_bytes.hex()),
+        Number(iterations),
+        Number(elapsed)
+      ]))
+    else:
+      rate = iterations / elapsed if elapsed > 0 else 0.0
+      print(f"PoW found: nonce={found_nonce}, hash={found_hash[:16]}..., iterations={iterations}, elapsed={elapsed:.3f}s, rate={int(rate)} H/s")
+      print(f"PoW result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {found_hash}, {iterations}, {elapsed:.3f}]")
+      return RTResult().success(List([
+        Number(found_nonce),
+        String(found_hash),
+        Number(iterations),
+        Number(elapsed)
+      ]))
+  execute_pow_mine.arg_names = ["data", "difficulty"]
+
+  def execute_pow_config(self, exec_ctx):
+    global POW_ALWAYS, POW_BITS
+    enable_val = exec_ctx.symbol_table.get("enable")
+    bits_val = exec_ctx.symbol_table.get("bits")
+    if not isinstance(enable_val, Number) or not isinstance(bits_val, Number):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Arguments must be numbers: enable(0/1), bits",
+        exec_ctx
+      ))
+    POW_ALWAYS = bool(int(enable_val.value))
+    POW_BITS = int(bits_val.value)
+    print(f"PoW(auto) {'enabled' if POW_ALWAYS else 'disabled'} with bits={POW_BITS}")
+    return RTResult().success(Number.true if POW_ALWAYS else Number.false)
+  execute_pow_config.arg_names = ["enable", "bits"]
+
+  def execute_pow_set_max_nonce(self, exec_ctx):
+    global POW_MAX_NONCE
+    max_val = exec_ctx.symbol_table.get("max_nonce")
+    if not isinstance(max_val, Number):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Argument must be number: max_nonce",
+        exec_ctx
+      ))
+    POW_MAX_NONCE = max(1, int(max_val.value))
+    print(f"PoW(auto) max_nonce set to {POW_MAX_NONCE}")
+    return RTResult().success(Number(POW_MAX_NONCE))
+  execute_pow_set_max_nonce.arg_names = ["max_nonce"]
+
+  def execute_help(self, exec_ctx):
+    # Pretty, boxed, terminal-width aware help for keywords and built-ins
+    def _cols(default: int = 80) -> int:
+      try:
+        return os.get_terminal_size().columns
+      except Exception:
+        return default
+    width = max(60, _cols())
+    inner = max(40, width - 2)
+
+    def _wrap(text: str, maxw: int):
+      text = str(text)
+      out = []
+      s = text.strip()
+      while len(s) > maxw:
+        cut = s.rfind(' ', 0, maxw)
+        if cut <= 0:
+          cut = maxw
+        out.append(s[:cut])
+        s = s[cut:].lstrip()
+      if s:
+        out.append(s)
+      return out
+
+    def _grid_lines(items):
+      items = [str(x) for x in items]
+      if not items:
+        return []
+      max_len = max(len(x) for x in items)
+      col_w = min(max_len + 2, max(10, inner // 2))
+      cols = max(1, inner // col_w)
+      rows = (len(items) + cols - 1) // cols
+      lines = []
+      for r in range(rows):
+        parts = []
+        for c in range(cols):
+          idx = c * rows + r
+          if idx < len(items):
+            parts.append(items[idx].ljust(col_w))
+        line = ''.join(parts).rstrip()
+        lines.append(line)
+      return lines
+
+    def _box(title: str, lines: list):
+      title = f" {title} "
+      if len(title) > inner:
+        title = title[:inner]
+      side = (inner - len(title)) // 2
+      # Rounded-style with section separators
+      print("╭" + ("─" * side) + title + ("─" * (inner - side - len(title))) + "╮")
+      # Add a subtle header underline
+      print("│" + (" " * inner) + "│")
+      for ln in lines:
+        if ln.strip().endswith(":") and len(ln.strip()) < inner - 2:
+          # section title inside box
+          label = " " + ln.strip() + " "
+          side2 = max(0, (inner - len(label)) // 2)
+          print("│" + ("─" * side2) + label + ("─" * (inner - side2 - len(label))) + "│")
+        else:
+          for piece in _wrap(ln, inner):
+            print("│" + piece.ljust(inner) + "│")
+      print("╰" + ("─" * inner) + "╯")
+
+    # Build categorized sections or detailed topic help
+    topic_val = exec_ctx.symbol_table.get("topic")
+
+    # Topic docs registry
+    DOCS = {
+      'if': (
+        'Keyword: if',
+        'Syntax:\n  if CONDITION then\n    STATEMENTS\n  elif CONDITION then\n    ...\n  else\n    ...\n  end\n\nExample:\n  var x = 5\n  if x > 3 then\n    show("gt")\n  else\n    show("le")\n  end'
+      ),
+      'for': (
+        'Keyword: for',
+        'Syntax:\n  for i = START to END step STEP then\n    BODY\n  end\n\nExample:\n  for i = 0 to 3 then\n    show(i)\n  end'
+      ),
+      'while': (
+        'Keyword: while',
+        'Syntax:\n  while CONDITION then\n    BODY\n  end'
+      ),
+      'fun': (
+        'Keyword: fun',
+        'Syntax:\n  fun name(args) -> expr\n  fun name(args)\n    body\n  end'
+      ),
+      'show': (
+        'Function: show(value)',
+        'Prints value to stdout.\nExample:\n  show("hi")'
+      ),
+      'print_ret': (
+        'Function: print_ret(value)',
+        'Returns a string of value without printing.\nExample:\n  var s = print_ret(123)'
+      ),
+      'clear': (
+        'Function: clear()',
+        'Clears the terminal (Windows: cls, Unix: clear). Alias: clr()'
+      ),
+      'ava_exec': (
+        'Function: ava_exec(path)',
+        'Runs a .x3 script file. Requires header with pk.\nExample:\n  ava_exec("code/example.ava")'
+      ),
+      'pow_mine': (
+        'Function: pow_mine(data, bits)',
+        'Finds a nonce such that sha256(data+nonce) has leading zero bits. Returns [nonce, hash, iter, time].'
+      ),
+      'pow_cfg': (
+        'Function: pow_cfg(enable, bits)',
+        'Enable automatic PoW after each execution.'
+      ),
+      'pow_max_nonce': (
+        'Function: pow_max_nonce(n)',
+        'Set max nonce for auto PoW.'
+      ),
+      'help': (
+        'Function: help([topic])',
+        'Without args shows categories. With a topic (e.g., "if" or "show") shows details.'
+      ),
+      'exit': (
+        'Function: exit([code])',
+        'Exit the REPL with optional status code.'
+      ),
+    }
+
+    def _show_topic(topic: str):
+      title, body = DOCS.get(topic, (None, None))
+      if not title:
+        return False
+      _box(title, _wrap(body, inner))
+      return True
+
+    if topic_val is not None and not isinstance(topic_val, Number):
+      # Accept String or BuiltInFunction
+      topic_key = None
+      if isinstance(topic_val, String):
+        topic_key = topic_val.value
+      elif isinstance(topic_val, BuiltInFunction):
+        topic_key = topic_val.name
+      elif isinstance(topic_val, Function):
+        topic_key = topic_val.name
+      if topic_key and _show_topic(topic_key):
+        return RTResult().success(Number.null)
+
+    # Categorized overview
+    kw_core = ['var','if','elif','else','then','end','for','to','step','while','fun','return','continue','break','and','or','not']
+    kw_lines = _grid_lines(sorted(kw_core))
+
+    io_funcs = ['show','print_ret','input','input_int','clear','clr']
+    list_funcs = ['add','pop','extend','len']
+    type_funcs = ['is_num','is_str','is_list','is_fun']
+    sys_funcs = ['ava_exec','help','exit']
+    pow_funcs = ['pow_mine','pow_cfg','pow_max_nonce']
+
+    content = []
+    content.append('Keywords:')
+    content.extend(kw_lines)
+    content.append('')
+    content.append('Functions (I/O):')
+    content.extend(_grid_lines([f for f in io_funcs if f in global_symbol_table.symbols]))
+    content.append('Functions (List):')
+    content.extend(_grid_lines([f for f in list_funcs if f in global_symbol_table.symbols]))
+    content.append('Functions (Type):')
+    content.extend(_grid_lines([f for f in type_funcs if f in global_symbol_table.symbols]))
+    content.append('Functions (System):')
+    content.extend(_grid_lines([f for f in sys_funcs if f in global_symbol_table.symbols]))
+    content.append('Functions (PoW):')
+    content.extend(_grid_lines([f for f in pow_funcs if f in global_symbol_table.symbols]))
+    content.append('')
+    content.extend(_wrap('Tip: use show(value) to print, ava_exec("file.x3") to run a script. Try help("if") or help("show").', inner))
+
+    _box('ava Language Help', content)
+    return RTResult().success(Number.null)
+  execute_help.arg_names = ["topic"]
+  execute_help.min_args = 0
+  execute_help.max_args = 1
+
+  def execute_exit(self, exec_ctx):
+    code_val = exec_ctx.symbol_table.get("code")
+    try:
+      code = int(code_val.value) if isinstance(code_val, Number) else 0
+    except Exception:
+      code = 0
+    print("Goodbye.")
+    sys.exit(code)
+  execute_exit.arg_names = ["code"]
+  execute_exit.min_args = 0
+  execute_exit.max_args = 1
+
+  def execute_run(self, exec_ctx):
+    global W3, CONTRACT_ADDRESS, ABI_OF_CONTRACT, IS_WEB3, PRIVATE_KEY, PYDATA, PROVIDER, POW_ALWAYS, POW_BITS, CURRENT_TRACE
+
+    fn = exec_ctx.symbol_table.get("fn")
+
+    if not isinstance(fn, String):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be string",
+        exec_ctx
+      ))
+
+    fn = fn.value
+
+    try:
+      with open(fn, "r") as f:
+        script = f.read()
+      firstHash = False
+      header_json = {}
+      for i in script.split('\n'):
+        i = i.strip()
+        if '#' in i and i.startswith('#'):
+          firstHash=True
+          raw = i.replace("#", "").strip()
+          parsed = None
+          # Try strict JSON first
+          try:
+            parsed = json.loads(raw)
+          except Exception:
+            # Fallback 1: Python literal (allows single quotes, trailing commas)
+            try:
+              parsed = ast.literal_eval(raw)
+            except Exception:
+              # Fallback 2: normalize booleans/null and trailing commas, then literal_eval
+              try:
+                norm = raw
+                # Replace JSON booleans/null with Python
+                norm = re.sub(r"\btrue\b", "True", norm)
+                norm = re.sub(r"\bfalse\b", "False", norm)
+                norm = re.sub(r"\bnull\b", "None", norm)
+                # Remove trailing commas before } or ]
+                norm = re.sub(r",\s*([}\]])", r"\1", norm)
+                parsed = ast.literal_eval(norm)
+              except Exception:
+                parsed = None
+              
+          if isinstance(parsed, dict):
+            PYDATA = parsed
+            header_json = dict(PYDATA)
+            # Enforce required header fieldss
+            if not header_json.get('pk'):
+              # attach header so shell can still read toggles
+              try:
+                if CURRENT_TRACE is not None:
+                  CURRENT_TRACE.execution.setdefault('header', {})
+                  CURRENT_TRACE.execution['header'].update(header_json)
+              except Exception:
+                return RTResult().failure(RTError(
+                  self.pos_start, self.pos_end,
+                  "Error in parsing header",
+                  exec_ctx
+                ))
+            # Assign private key
+            try:
+              global PRIVATE_KEY
+              PRIVATE_KEY = str(header_json.get('pk'))
+            except Exception:
+              pass
+            # Optional toggles
+            if 'pow_always' in header_json:
+              POW_ALWAYS = bool(header_json.get('pow_always'))
+            if 'pow_bits' in header_json:
+              try:
+                POW_BITS = int(header_json.get('pow_bits'))
+              except Exception:
+                POW_BITS = 0
+          # Stop after first header line
+          if firstHash:
+            break
+      # Enforce pk required for any ava_exec run
+      if not header_json.get('pk'):
+        # attach header to outer trace for shell toggles even on error
+        try:
+          if CURRENT_TRACE is not None:
+            CURRENT_TRACE.execution.setdefault('header', {})
+            CURRENT_TRACE.execution['header'].update(header_json)
+        except Exception:
+          pass
+        return RTResult().failure(RTError(
+          self.pos_start, self.pos_end,
+          "Missing required 'pk' in header",
+          exec_ctx
+        ))
+    except Exception as e:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        f"Failed to load script \"{fn}\"\n" + str(e),
+        exec_ctx
+      ))
+
+    result_obj, error = run(fn, script)
+    # Attach header JSON to trace for shell visibility toggles
+    try:
+      if isinstance(result_obj, dict):
+        result_obj.setdefault('trace', {}).setdefault('execution', {})['header'] = header_json
+      # Also attach header to the outer trace so the shell can read it from the top-level run
+      if CURRENT_TRACE is not None:
+        CURRENT_TRACE.execution.setdefault('header', {})
+        CURRENT_TRACE.execution['header'].update(header_json)
+      # Echo inner script's stdout to current (outer) captured stdout so terminal shows file's show() output
+      inner_stdout = ""
+      if isinstance(result_obj, dict):
+        inner_stdout = result_obj.get('stdout') or result_obj.get('trace', {}).get('execution', {}).get('stdout') or ""
+      if inner_stdout:
+        print(inner_stdout, end='')
+    except Exception:
+      pass
+    
+    if error:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        f"Failed to finish executing script \"{fn}\"\n" +
+        error.as_string(),
+        exec_ctx
+      ))
+
+    return RTResult().success(Number.null)
+  execute_run.arg_names = ["fn"]
+
+BuiltInFunction.print       = BuiltInFunction("print")
+BuiltInFunction.pyexe       = BuiltInFunction("pyexe")
+BuiltInFunction.print_ret   = BuiltInFunction("print_ret")
+BuiltInFunction.input       = BuiltInFunction("input")
+BuiltInFunction.input_int   = BuiltInFunction("input_int")
+BuiltInFunction.clear       = BuiltInFunction("clear")
+BuiltInFunction.is_number   = BuiltInFunction("is_number")
+BuiltInFunction.is_string   = BuiltInFunction("is_string")
+BuiltInFunction.is_list     = BuiltInFunction("is_list")
+BuiltInFunction.is_function = BuiltInFunction("is_function")
+BuiltInFunction.append      = BuiltInFunction("append")
+BuiltInFunction.pop         = BuiltInFunction("pop")
+BuiltInFunction.extend      = BuiltInFunction("extend")
+BuiltInFunction.len					= BuiltInFunction("len")
+BuiltInFunction.run					= BuiltInFunction("run")
+BuiltInFunction.pow_mine       = BuiltInFunction("pow_mine")
+BuiltInFunction.pow_config     = BuiltInFunction("pow_config")
+BuiltInFunction.pow_set_max_nonce = BuiltInFunction("pow_set_max_nonce")
+BuiltInFunction.help          = BuiltInFunction("help")
+BuiltInFunction.exit          = BuiltInFunction("exit")
+
+#######################################
+# CONTEXT
+#######################################
+
+class Context:
+  def __init__(self, display_name, parent=None, parent_entry_pos=None):
+    self.display_name = display_name
+    self.parent = parent
+    self.parent_entry_pos = parent_entry_pos
+    self.symbol_table = None
+
+#######################################
+# SYMBOL TABLE
+#######################################
+
+class SymbolTable:
+  def __init__(self, parent=None):
+    self.symbols = {}
+    self.parent = parent
+
+  def get(self, name):
+    value = self.symbols.get(name, None)
+    if value == None and self.parent:
+      return self.parent.get(name)
+    return value
+
+  def set(self, name, value):
+    self.symbols[name] = value
+
+  def remove(self, name):
+    del self.symbols[name]
+
+  def get_all_data(self):
+        all_data = {}
+        # Add symbols from the current symbol table
+        all_data.update(self.symbols)
+        # Recursively add symbols from the parent symbol tables
+        if self.parent:
+            all_data.update(self.parent.get_all_data())
+        return all_data
+
+#######################################
+# INTERPRETER
+#######################################
+
+class Interpreter:
+  def visit(self, node, context):
+    global CURRENT_TRACE
+    # Pre-event
+    if CURRENT_TRACE is not None and node is not None:
+      CURRENT_TRACE.add_event('enter_node', {
+        'node_type': type(node).__name__,
+        'pos_start': {
+          'idx': getattr(getattr(node, 'pos_start', None), 'idx', None),
+          'line': getattr(getattr(node, 'pos_start', None), 'ln', None),
+          'col': getattr(getattr(node, 'pos_start', None), 'col', None),
+        },
+        'pos_end': {
+          'idx': getattr(getattr(node, 'pos_end', None), 'idx', None),
+          'line': getattr(getattr(node, 'pos_end', None), 'ln', None),
+          'col': getattr(getattr(node, 'pos_end', None), 'col', None),
+        },
+      })
+    method_name = f'visit_{type(node).__name__}'
+    method = getattr(self, method_name, self.no_visit_method)
+    res = method(node, context)
+    # Post-event
+    if CURRENT_TRACE is not None and node is not None:
+      CURRENT_TRACE.add_event('exit_node', {
+        'node_type': type(node).__name__,
+        'result': value_to_python(getattr(res, 'value', None)),
+        'error': error_to_dict(getattr(res, 'error', None))
+      })
+    return res
+
+  def no_visit_method(self, node, context):
+    raise Exception(f'No visit_{type(node).__name__} method defined')
+
+  ###################################
+
+  def visit_NumberNode(self, node, context):
+    return RTResult().success(
+      Number(node.tok.value).set_context(context).set_pos(node.pos_start, node.pos_end)
+    )
+
+  def visit_StringNode(self, node, context):
+    return RTResult().success(
+      String(node.tok.value).set_context(context).set_pos(node.pos_start, node.pos_end)
+    )
+
+  def visit_ListNode(self, node, context):
+    res = RTResult()
+    elements = []
+
+    for element_node in node.element_nodes:
+      elements.append(res.register(self.visit(element_node, context)))
+      if res.should_return(): return res
+
+    return res.success(
+      List(elements).set_context(context).set_pos(node.pos_start, node.pos_end)
+    )
+
+  def visit_VarAccessNode(self, node, context):
+    res = RTResult()
+    var_name = node.var_name_tok.value
+    value = context.symbol_table.get(var_name)
+
+    if not value:
+      return res.failure(RTError(
+        node.pos_start, node.pos_end,
+        f"'{var_name}' is not defined",
+        context
+      ))
+
+    value = value.copy().set_pos(node.pos_start, node.pos_end).set_context(context)
+    return res.success(value)
+
+  def visit_VarAssignNode(self, node, context):
+    res = RTResult()
+    var_name = node.var_name_tok.value
+    value = res.register(self.visit(node.value_node, context))
+    if res.should_return(): return res
+
+    context.symbol_table.set(var_name, value)
+    if CURRENT_TRACE is not None:
+      CURRENT_TRACE.add_event('var_assign', {
+        'name': var_name,
+        'value': value_to_python(value)
+      })
+    return res.success(value)
+
+  def visit_BinOpNode(self, node, context):
+    res = RTResult()
+    left = res.register(self.visit(node.left_node, context))
+    if res.should_return(): return res
+    right = res.register(self.visit(node.right_node, context))
+    if res.should_return(): return res
+
+    if node.op_tok.type == TT_PLUS:
+      result, error = left.added_to(right)
+    elif node.op_tok.type == TT_MINUS:
+      result, error = left.subbed_by(right)
+    elif node.op_tok.type == TT_MUL:
+      result, error = left.multed_by(right)
+    elif node.op_tok.type == TT_DIV:
+      result, error = left.dived_by(right)
+    elif node.op_tok.type == TT_POW:
+      result, error = left.powed_by(right)
+    elif node.op_tok.type == TT_EE:
+      result, error = left.get_comparison_eq(right)
+    elif node.op_tok.type == TT_NE:
+      result, error = left.get_comparison_ne(right)
+    elif node.op_tok.type == TT_LT:
+      result, error = left.get_comparison_lt(right)
+    elif node.op_tok.type == TT_GT:
+      result, error = left.get_comparison_gt(right)
+    elif node.op_tok.type == TT_LTE:
+      result, error = left.get_comparison_lte(right)
+    elif node.op_tok.type == TT_GTE:
+      result, error = left.get_comparison_gte(right)
+    elif node.op_tok.matches(TT_KEYWORD, 'and'):
+      result, error = left.anded_by(right)
+    elif node.op_tok.matches(TT_KEYWORD, 'or'):
+      result, error = left.ored_by(right)
+
+    if error:
+      return res.failure(error)
+    else:
+      return res.success(result.set_pos(node.pos_start, node.pos_end))
+
+  def visit_UnaryOpNode(self, node, context):
+    res = RTResult()
+    number = res.register(self.visit(node.node, context))
+    if res.should_return(): return res
+
+    error = None
+
+    if node.op_tok.type == TT_MINUS:
+      number, error = number.multed_by(Number(-1))
+    elif node.op_tok.matches(TT_KEYWORD, 'not'):
+      number, error = number.notted()
+
+    if error:
+      return res.failure(error)
+    else:
+      return res.success(number.set_pos(node.pos_start, node.pos_end))
+
+  def visit_IfNode(self, node, context):
+    res = RTResult()
+
+    for condition, expr, should_return_null in node.cases:
+      condition_value = res.register(self.visit(condition, context))
+      if res.should_return(): return res
+
+      if condition_value.is_true():
+        expr_value = res.register(self.visit(expr, context))
+        if res.should_return(): return res
+        return res.success(Number.null if should_return_null else expr_value)
+
+    if node.else_case:
+      expr, should_return_null = node.else_case
+      expr_value = res.register(self.visit(expr, context))
+      if res.should_return(): return res
+      return res.success(Number.null if should_return_null else expr_value)
+
+    return res.success(Number.null)
+
+  def visit_ForNode(self, node, context):
+    res = RTResult()
+    elements = []
+
+    start_value = res.register(self.visit(node.start_value_node, context))
+    if res.should_return(): return res
+
+    end_value = res.register(self.visit(node.end_value_node, context))
+    if res.should_return(): return res
+
+    if node.step_value_node:
+      step_value = res.register(self.visit(node.step_value_node, context))
+      if res.should_return(): return res
+    else:
+      step_value = Number(1)
+
+    i = start_value.value
+
+    if step_value.value >= 0:
+      condition = lambda: i < end_value.value
+    else:
+      condition = lambda: i > end_value.value
+    
+    while condition():
+      context.symbol_table.set(node.var_name_tok.value, Number(i))
+      i += step_value.value
+
+      value = res.register(self.visit(node.body_node, context))
+      if res.should_return() and res.loop_should_continue == False and res.loop_should_break == False: return res
+      
+      if res.loop_should_continue:
+        continue
+      
+      if res.loop_should_break:
+        break
+
+      elements.append(value)
+
+    return res.success(
+      Number.null if node.should_return_null else
+      List(elements).set_context(context).set_pos(node.pos_start, node.pos_end)
+    )
+
+  def visit_WhileNode(self, node, context):
+    res = RTResult()
+    elements = []
+
+    while True:
+      condition = res.register(self.visit(node.condition_node, context))
+      if res.should_return(): return res
+
+      if not condition.is_true():
+        break
+
+      value = res.register(self.visit(node.body_node, context))
+      if res.should_return() and res.loop_should_continue == False and res.loop_should_break == False: return res
+
+      if res.loop_should_continue:
+        continue
+      
+      if res.loop_should_break:
+        break
+
+      elements.append(value)
+
+    return res.success(
+      Number.null if node.should_return_null else
+      List(elements).set_context(context).set_pos(node.pos_start, node.pos_end)
+    )
+
+  def visit_FuncDefNode(self, node, context):
+    res = RTResult()
+
+    func_name = node.var_name_tok.value if node.var_name_tok else None
+    body_node = node.body_node
+    arg_names = [arg_name.value for arg_name in node.arg_name_toks]
+    func_value = Function(func_name, body_node, arg_names, node.should_auto_return).set_context(context).set_pos(node.pos_start, node.pos_end)
+    
+    if node.var_name_tok:
+      context.symbol_table.set(func_name, func_value)
+
+    return res.success(func_value)
+
+  def visit_CallNode(self, node, context):
+    res = RTResult()
+    args = []
+
+    value_to_call = res.register(self.visit(node.node_to_call, context))
+    if res.should_return(): return res
+    value_to_call = value_to_call.copy().set_pos(node.pos_start, node.pos_end)
+
+    for arg_node in node.arg_nodes:
+      args.append(res.register(self.visit(arg_node, context)))
+      if res.should_return(): return res
+
+    if CURRENT_TRACE is not None:
+      CURRENT_TRACE.add_event('call', {
+        'callable': str(value_to_call),
+        'args': [value_to_python(a) for a in args]
+      })
+    return_value = res.register(value_to_call.execute(args))
+    if res.should_return(): return res
+    return_value = return_value.copy().set_pos(node.pos_start, node.pos_end).set_context(context)
+    if CURRENT_TRACE is not None:
+      CURRENT_TRACE.add_event('return', {
+        'value': value_to_python(return_value)
+      })
+    return res.success(return_value)
+
+  def visit_ReturnNode(self, node, context):
+    res = RTResult()
+
+    if node.node_to_return:
+      value = res.register(self.visit(node.node_to_return, context))
+      if res.should_return(): return res
+    else:
+      value = Number.null
+    
+    return res.success_return(value)
+
+  def visit_ContinueNode(self, node, context):
+    return RTResult().success_continue()
+
+  def visit_BreakNode(self, node, context):
+    return RTResult().success_break()
+
+#######################################
+# RUN
+#######################################
+
+global_symbol_table = SymbolTable()
+global_symbol_table.set("null", Number.null)
+global_symbol_table.set("false", Number.false)
+global_symbol_table.set("true", Number.true)
+global_symbol_table.set("math_PI", Number.math_PI)
+global_symbol_table.set("show", BuiltInFunction.print)
+global_symbol_table.set("pyexe", BuiltInFunction.pyexe)
+global_symbol_table.set("print_ret", BuiltInFunction.print_ret)
+global_symbol_table.set("get", BuiltInFunction.input)
+global_symbol_table.set("get_int", BuiltInFunction.input_int)
+global_symbol_table.set("clear", BuiltInFunction.clear)
+global_symbol_table.set("clr", BuiltInFunction.clear)
+global_symbol_table.set("is_num", BuiltInFunction.is_number)
+global_symbol_table.set("is_str", BuiltInFunction.is_string)
+global_symbol_table.set("is_list", BuiltInFunction.is_list)
+global_symbol_table.set("is_fun", BuiltInFunction.is_function)
+global_symbol_table.set("add", BuiltInFunction.append)
+global_symbol_table.set("pop", BuiltInFunction.pop)
+global_symbol_table.set("extend", BuiltInFunction.extend)
+global_symbol_table.set("len", BuiltInFunction.len)
+global_symbol_table.set("ava_exec", BuiltInFunction.run)
+global_symbol_table.set("pow_mine", BuiltInFunction.pow_mine)
+global_symbol_table.set("pow_cfg", BuiltInFunction.pow_config)
+global_symbol_table.set("pow_max_nonce", BuiltInFunction.pow_set_max_nonce)
+global_symbol_table.set("help", BuiltInFunction.help)
+global_symbol_table.set("exit", BuiltInFunction.exit)
+
+
+"""
+Lex :Object(string)
+tokens: list[string]
+full_code:string
+ast: object(string)
+parser: object(string)
+result :object(string)
+context object(string)
+symbol_table: [value:object(string)]
+ExecutionTime: int
+result: value
+
+"""
+
+def run(fn, text):
+    global W3, CONTRACT_ADDRESS, ABI_OF_CONTRACT, IS_WEB3, PRIVATE_KEY, PYDATA, PROVIDER, ErrorMsg, PkErrorMsg, CURRENT_TRACE, POW_ALWAYS, POW_BITS, POW_MAX_NONCE
+    # Generate tokens (make tracing re-entrant safe)
+    prev_trace = CURRENT_TRACE
+    CURRENT_TRACE = TraceCollector(fn, text)
+    lexer = Lexer(fn, text)
+    tokens, error = lexer.make_tokens()
+
+    if error:
+      result_obj = {
+        'file': fn,
+        'elapsed': 0,
+        'trace': {
+          'lexer': CURRENT_TRACE.lexer,
+          'parser': CURRENT_TRACE.parser,
+          'execution': CURRENT_TRACE.execution
+        },
+        'symbols_end': {},
+        'web3': {},
+        'error': error_to_dict(error)
+      }
+      CURRENT_TRACE = prev_trace
+      return result_obj, error
+    # print(tokens)
+    
+    # Generate AST
+    parser = Parser(tokens)
+    ast = parser.parse()
+    # print(parser, ast, global_symbol_table.get_all_data())
+    if ast.error:
+      result_obj = {
+        'file': fn,
+        'elapsed': 0,
+        'trace': {
+          'lexer': CURRENT_TRACE.lexer,
+          'parser': CURRENT_TRACE.parser,
+          'execution': CURRENT_TRACE.execution
+        },
+        'symbols_end': {},
+        'web3': {},
+        'error': error_to_dict(ast.error)
+      }
+      CURRENT_TRACE = prev_trace
+      return result_obj, ast.error
+
+
+    # Run program
+    interpreter = Interpreter()
+    context = Context('<program>')
+    # print(context)
+    context.symbol_table = global_symbol_table
+
+    # Capture stdout during execution
+    original_stdout = sys.stdout
+    stdout_buffer = io.StringIO()
+    sys.stdout = stdout_buffer
+    try:
+      result = interpreter.visit(ast.node, context)
+      # Optional: perform automatic PoW for every execution when enabled
+      if POW_ALWAYS and POW_BITS > 0:
+        print(f"PoW(auto) start: bits={POW_BITS}, max_nonce={POW_MAX_NONCE}")
+        data_bytes = (fn + ':' + text).encode('utf-8')
+        difficulty_bits = int(POW_BITS)
+        target = 1 << (256 - difficulty_bits) if difficulty_bits > 0 else (1 << 256)
+        progress_interval = max(1, POW_MAX_NONCE // 30)
+        start_time_pow = time.time()
+        found_nonce = -1
+        found_hash = ''
+        iterations = 0
+        last_digest_bytes = b''
+        for nonce in range(POW_MAX_NONCE):
+          iterations = nonce + 1
+          content = data_bytes + str(nonce).encode('utf-8')
+          digest_bytes = hashlib.sha256(content).digest()
+          last_digest_bytes = digest_bytes
+          if int.from_bytes(digest_bytes, 'big') < target:
+            found_nonce = nonce
+            found_hash = digest_bytes.hex()
+            break
+          if iterations % progress_interval == 0:
+            elapsed_so_far = time.time() - start_time_pow
+            rate = iterations / elapsed_so_far if elapsed_so_far > 0 else 0.0
+            print(f"PoW(auto) progress: iter={iterations}, rate={int(rate)} H/s")
+        elapsed_pow = time.time() - start_time_pow
+        if found_nonce == -1:
+          rate = iterations / elapsed_pow if elapsed_pow > 0 else 0.0
+          print(f"PoW(auto) not found within max_nonce. iterations={iterations}, elapsed={elapsed_pow:.3f}s, rate={int(rate)} H/s")
+          print(f"PoW(auto) result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {last_digest_bytes.hex()}, {iterations}, {elapsed_pow:.3f}]")
+          CURRENT_TRACE.execution['pow'] = {
+            'bits': difficulty_bits,
+            'nonce': found_nonce,
+            'hash': last_digest_bytes.hex(),
+            'iterations': iterations,
+            'elapsed': elapsed_pow
+          }
+        else:
+          rate = iterations / elapsed_pow if elapsed_pow > 0 else 0.0
+          print(f"PoW(auto) found: nonce={found_nonce}, hash={found_hash[:16]}..., iterations={iterations}, elapsed={elapsed_pow:.3f}s, rate={int(rate)} H/s")
+          print(f"PoW(auto) result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {found_hash}, {iterations}, {elapsed_pow:.3f}]")
+          CURRENT_TRACE.execution['pow'] = {
+            'bits': difficulty_bits,
+            'nonce': found_nonce,
+            'hash': found_hash,
+            'iterations': iterations,
+            'elapsed': elapsed_pow
+          }
+    finally:
+      sys.stdout = original_stdout
+    # Prepare final trace with captured stdout
+    CURRENT_TRACE.execution['stdout'] = stdout_buffer.getvalue()
+    CURRENT_TRACE.finish(
+      symbols_snapshot=context.symbol_table.get_all_data(),
+      final_value=value_to_python(getattr(result, 'value', None))
+    )
+
+    # do_line()
+    if IS_WEB3:
+      if PYDATA.get("account"):
+        if PYDATA.get("pk"):
+          CURRENT_TRACE.web3 = {"ABI_OF_CONTRACT":ABI_OF_CONTRACT, "CONTRACT_ADDRESS":CONTRACT_ADDRESS, "PROVIDER":PROVIDER, "PRIVATE_KEY":PYDATA.get("pk")}
+        elif PkErrorMsg and PYDATA.get("ack"):
+          PkErrorMsg = False
+          print("Private Key Not Found: Please add Private Key of your wallet")
+      elif ErrorMsg and PYDATA.get("ack"):
+        ErrorMsg = False
+        print("Account Not Found: Please add account of your sender")
+    result_obj = {
+      'file': fn,
+      'elapsed': CURRENT_TRACE.elapsed,
+      'trace': {
+        'lexer': CURRENT_TRACE.lexer,
+        'parser': CURRENT_TRACE.parser,
+        'execution': CURRENT_TRACE.execution
+      },
+      'stdout': CURRENT_TRACE.execution.get('stdout', ''),
+      'final_value': CURRENT_TRACE.execution.get('final_value'),
+      'pow': CURRENT_TRACE.execution.get('pow'),
+      'symbols_end': {k: value_to_python(v) for k, v in CURRENT_TRACE.symbols_end.items()},
+      'web3': CURRENT_TRACE.web3,
+      'error': error_to_dict(getattr(result, 'error', None))
+    }
+    CURRENT_TRACE = prev_trace
+    return result_obj, result.error
