@@ -20,6 +20,7 @@ import Image from "next/image"
 export default function Page() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
+  
   return (
     <>
       <div className="flex min-h-screen flex-col relative w-full">
