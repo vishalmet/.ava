@@ -37,6 +37,8 @@ function getBalance(account: address) -> u64 {
   const [conversionError, setConversionError] = useState("")
   const [hasStoredKey, setHasStoredKey] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
+  const [displayedCode, setDisplayedCode] = useState("")
+  const [isTyping, setIsTyping] = useState(false)
 
   const languages = [
     { value: "sol", label: "Solidity (.sol)", extension: ".sol", apiValue: "solidity" },
@@ -52,6 +54,49 @@ function getBalance(account: address) -> u64 {
       setHasStoredKey(true)
     }
   }, [])
+
+  // Typing animation function
+  const typeCode = async (code: string) => {
+    setIsTyping(true)
+    setDisplayedCode("")
+    
+    const lines = code.split('\n')
+    let currentText = ""
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // Type each character in the line
+      for (let j = 0; j < line.length; j++) {
+        currentText += line[j]
+        setDisplayedCode(currentText)
+        
+        // Adjust speed based on character type for more realistic typing
+        const char = line[j]
+        let delay = 20 // Default delay
+        
+        if (char === ' ') delay = 8 // Faster for spaces
+        else if (char.match(/[{}();,]/)) delay = 10 // Slower for syntax
+        else if (char.match(/[a-zA-Z]/)) delay = 10 // Normal for letters
+        else if (char.match(/[0-9]/)) delay = 10 // Numbers
+        else delay = 25 // Other characters
+        
+        // Add some randomness for more natural typing
+        delay += Math.random() * 10 - 5
+        
+        await new Promise(resolve => setTimeout(resolve, Math.max(5, delay)))
+      }
+      
+      // Add newline if not the last line
+      if (i < lines.length - 1) {
+        currentText += '\n'
+        setDisplayedCode(currentText)
+        await new Promise(resolve => setTimeout(resolve, 100)) // Pause at end of line
+      }
+    }
+    
+    setIsTyping(false)
+  }
 
   const mockConversions = {
     sol: `// Converted to Solidity
@@ -170,6 +215,7 @@ impl AvaContract {
   const convertCode = async (apiKeyToUse: string) => {
     setIsConverting(true)
     setConversionError("")
+    setDisplayedCode("") // Clear displayed code when starting conversion
     
     try {
       const targetLang = languages.find(l => l.value === targetLanguage)?.apiValue || "solidity"
@@ -192,7 +238,11 @@ impl AvaContract {
       }
 
       const data = await response.json()
-      setConvertedCode(data.code || data.converted_code || data.result || "Conversion completed but no code returned")
+      const code = data.code || data.converted_code || data.result || "Conversion completed but no code returned"
+      setConvertedCode(code)
+      
+      // Start typing animation
+      await typeCode(code)
       
     } catch (error) {
       console.error('Conversion error:', error)
@@ -398,7 +448,7 @@ impl AvaContract {
           {/* Output Side - Converted Code */}
           <div className="bg-white border rounded-lg p-6 shadow-sm">
             <CodeEditor
-              value={convertedCode}
+              value={isTyping ? displayedCode + '▌' : convertedCode}
               language={targetLanguage as "sol" | "cairo" | "rs"}
               title="Converted Code"
               badge="Output"
