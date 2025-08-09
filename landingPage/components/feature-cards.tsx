@@ -2,31 +2,31 @@
 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Shield, FileCode2, Target } from "lucide-react"
+import { Zap, Shield, FileCode2, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function FeatureCards() {
   const features = [
     {
-      title: "Proof of Work",
-      desc: "Automatic PoW generation for every program execution.",
+      title: "Compilation PoW",
+      desc: "Compiler generates proof during build for authenticity.",
       icon: Zap,
     },
     {
-      title: "Onchain Verification",
-      desc: "All actions are fully verifiable on the blockchain.",
+      title: "Spam Prevention",
+      desc: "Computational cost prevents fake deployments.",
       icon: Shield,
     },
     {
-      title: "Multi-Language",
-      desc: "Compile to Solidity, Cairo, and Rust seamlessly.",
+      title: "Cross-Chain Trust",
+      desc: "Verification works across .sol, .cairo, and .rs.",
       icon: FileCode2,
     },
     {
-      title: "Universal Target",
-      desc: "Deploy anywhere with consistent verification.",
-      icon: Target,
+      title: "Code Integrity",
+      desc: "Prove code wasn't altered after compilation.",
+      icon: CheckCircle,
     },
   ]
 
@@ -62,10 +62,10 @@ export default function FeatureCards() {
             Built for verification
           </div>
           <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need for verifiable computing
+            Built for authenticity and trust
           </h2>
           <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
-            A powerful language with built-in Proof of Work and multi-target compilation.
+            Compilation-time PoW ensures your code is authentic, spam-free, and verifiable anywhere.
           </p>
         </div>
         <motion.div

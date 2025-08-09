@@ -58,10 +58,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-1" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    How does Proof of Work generation work?
+                    How does compilation-time Proof of Work work?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    Every ava program automatically generates Proof of Work during execution. This ensures computational integrity and enables verifiable computing without additional setup.
+                    During compilation, the ava compiler performs a computational challenge (hash puzzle or verifiable computation) that produces a proof artifact. This proof is recorded with your program's hash, ensuring authenticity and preventing spam deployments.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -80,10 +80,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-3" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    How is onchain verification handled?
+                    How does verification prevent fake deployments?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    All program actions are recorded onchain with cryptographic proofs. Anyone can verify the execution history and computational integrity at any time.
+                    When code runs or is inspected later, nodes can verify that the code wasn't altered after compilation, was built using the official ava toolchain, and required computational work was done. This prevents spam and ensures authenticity.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -91,10 +91,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-4" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Can I integrate ava with existing codebases?
+                    Why does cross-chain verification matter?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    Yes. Compile ava programs to your target language and integrate the generated code into existing projects while maintaining verification capabilities.
+                    The PoW proof works whether your code is converted to .sol, .cairo, or .rs. This creates universal trust - any blockchain can verify your code's authenticity and integrity, regardless of the target language.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>

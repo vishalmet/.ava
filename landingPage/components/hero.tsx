@@ -66,7 +66,7 @@ export default function Hero() {
           </motion.h1>
 
           <motion.p variants={item} className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600 md:text-xl">
-            Write programs in {brand.name} that automatically generate Proof of Work. Every action is fully onchain and verifiable, with seamless compilation to Solidity, Cairo, and Rust.
+            Write programs in {brand.name} where compilation generates Proof of Work for authenticity. Prevent spam, ensure integrity, and deploy with verifiable trust across any blockchain.
           </motion.p>
 
           <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -89,10 +89,10 @@ export default function Hero() {
 
           <motion.div variants={item} className="mt-6 flex items-center justify-center gap-2">
             <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
-              Proof of Work
+              Authentic
             </Badge>
             <Badge variant="secondary" className="border-rose-200 bg-rose-50 text-rose-700">
-              Multi-target
+              Cross-chain
             </Badge>
           </motion.div>
 
@@ -128,7 +128,7 @@ function DemoCard({ title, tint = "rose" }: { title: string; tint?: "rose" | "or
       <div className={`mb-3 h-10 w-full rounded-md bg-gradient-to-r ${bar}`} />
       <div className="h-24 rounded-lg bg-neutral-50 ring-1 ring-orange-100" />
       <div className="mt-3 text-sm font-medium text-neutral-800">{title}</div>
-      <p className="text-xs text-neutral-500">Verifiable execution with automatic Proof of Work.</p>
+      <p className="text-xs text-neutral-500">Compilation generates PoW for authenticity and spam prevention.</p>
     </div>
   )
 }
