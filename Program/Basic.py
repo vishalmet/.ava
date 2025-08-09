@@ -1289,3 +1289,23 @@ class RTResult:
     self.func_return_value = res.func_return_value
     self.loop_should_continue = res.loop_should_continue
     self.loop_should_break = res.loop_should_break
+    return res.value
+
+  def success_break(self):
+    self.reset()
+    self.loop_should_break = True
+    return self
+
+  def failure(self, error):
+    self.reset()
+    self.error = error
+    return self
+
+  def should_return(self):
+    # Note: this will allow you to continue and break outside the current function
+    return (
+      self.error or
+      self.func_return_value or
+      self.loop_should_continue or
+      self.loop_should_break
+    )
