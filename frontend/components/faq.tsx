@@ -56,11 +56,11 @@ export default function Faq() {
           >
             <Accordion type="single" collapsible className="mt-8">
               <motion.div variants={item}>
-                <AccordionItem value="item-1" className="border-b border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
-                  <AccordionTrigger className="hover:no-underline px-6 text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
+                <AccordionItem value="item-1" className="border-b px-6 border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
+                  <AccordionTrigger className="hover:no-underline text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
                     How does compilation-time Proof of Execution work?
                   </AccordionTrigger>
-                  <AccordionContent className=" pb-6 text-neutral-600 leading-relaxed text-base">
+                  <AccordionContent className=" text-neutral-600 leading-relaxed text-base">
                     During compilation, the ava compiler performs a computational challenge (hash puzzle or verifiable computation) that produces a proof artifact. This proof is recorded with your program's hash, ensuring authenticity and preventing spam deployments.
                   </AccordionContent>
                 </AccordionItem>

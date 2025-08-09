@@ -10,7 +10,7 @@ import Hero from "@/components/hero"
 import FeatureCards from "@/components/feature-cards"
 import Steps from "@/components/steps"
 import ConverterCta from "@/components/converter-cta"
-import AvalancheCta from "@/components/avalanche-cta"
+import ExplorerCta from "@/components/explorer-cta"
 import Faq from "@/components/faq"
 import ScrollToTop from "@/components/scroll-to-top"
 
@@ -225,6 +225,7 @@ export default function Page() {
         <FeatureCards />
         <Steps />
         <ConverterCta />
+        <ExplorerCta />
         {/* <AvalancheCta /> */}
         <Faq />
       </main>
