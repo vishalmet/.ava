@@ -47,7 +47,7 @@ export default function Page() {
           >
             <Link href="#" className="flex items-center gap-2 group">
               <div className="relative">
-                <Image src={AVA} alt="ava" className="h-10 w-auto" />
+                <Image src={AVA} alt="ava" className="h-10 w-auto rounded-md hover:rotate-12 transition-all duration-300" />
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
