@@ -2057,6 +2057,18 @@ class BuiltInFunction(BaseFunction):
         rate = 0.0
       print(f"PoW not found within max_nonce. iterations={iterations}, elapsed={elapsed:.3f}s, rate={int(rate)} H/s")
       print(f"PoW result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {digest_bytes.hex()}, {iterations}, {elapsed:.3f}]")
+      # Surface to shell panel
+      try:
+        if CURRENT_TRACE is not None:
+          CURRENT_TRACE.execution['pow'] = {
+            'bits': difficulty_bits,
+            'nonce': found_nonce,
+            'hash': digest_bytes.hex(),
+            'iterations': iterations,
+            'elapsed': elapsed
+          }
+      except Exception:
+        pass
       return RTResult().success(List([
         Number(found_nonce),
         String(digest_bytes.hex()),
@@ -2067,6 +2079,18 @@ class BuiltInFunction(BaseFunction):
       rate = iterations / elapsed if elapsed > 0 else 0.0
       print(f"PoW found: nonce={found_nonce}, hash={found_hash[:16]}..., iterations={iterations}, elapsed={elapsed:.3f}s, rate={int(rate)} H/s")
       print(f"PoW result: [nonce, hash, iterations, elapsed] = [{found_nonce}, {found_hash}, {iterations}, {elapsed:.3f}]")
+      # Surface to shell panel
+      try:
+        if CURRENT_TRACE is not None:
+          CURRENT_TRACE.execution['pow'] = {
+            'bits': difficulty_bits,
+            'nonce': found_nonce,
+            'hash': found_hash,
+            'iterations': iterations,
+            'elapsed': elapsed
+          }
+      except Exception:
+        pass
       return RTResult().success(List([
         Number(found_nonce),
         String(found_hash),
