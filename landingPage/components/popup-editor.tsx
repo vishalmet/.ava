@@ -45,9 +45,14 @@ export default function PopupEditor({
     }
     setCursorPosition(e.target.selectionStart)
     
-    // Show suggestions when typing if not read-only
+    // Auto-trigger suggestions like Cursor IDE
     if (!readOnly) {
-      const shouldShowSuggestions = e.target.value.length > 0
+      const textBeforeCursor = e.target.value.substring(0, e.target.selectionStart)
+      const words = textBeforeCursor.split(/\s+/)
+      const currentWord = words[words.length - 1] || ''
+      
+      // Show suggestions if we're typing a word (at least 1 character)
+      const shouldShowSuggestions = currentWord.length >= 1 && /^[a-zA-Z]/.test(currentWord)
       setShowSuggestions(shouldShowSuggestions)
       
       if (shouldShowSuggestions) {
@@ -216,57 +221,56 @@ export default function PopupEditor({
 
             {/* Editor Content */}
             <div ref={editorRef} className="relative flex-1 overflow-hidden" style={{ height: 'calc(80vh - 73px)', backgroundColor: '#1e1e1e' }}>
-              {isEditing && !readOnly ? (
-                // Show regular textarea when editing
-                <textarea
-                  ref={textareaRef}
-                  value={value}
-                  onChange={handleTextareaChange}
-                  onScroll={handleScroll}
-                  onFocus={handleFocus}
-                  onBlur={handleBlur}
-                  onKeyDown={handleKeyDown}
-                  className="w-full h-full p-4 font-mono text-sm text-white bg-transparent border-0 outline-none resize-none"
-                  placeholder={readOnly ? "No content to display" : "Enter your code here... (Ctrl+Space for suggestions)"}
-                  readOnly={readOnly}
-                  spellCheck={false}
-                  style={{
-                    lineHeight: '1.5',
-                    tabSize: 2,
-                    caretColor: '#00ff00', // Bright green cursor for visibility
-                    backgroundColor: '#1e1e1e',
-                  }}
-                />
-              ) : (
-                // Show syntax highlighted version when not editing
-                <div className="relative w-full h-full">
-                  {value ? (
-                    <SyntaxHighlighter 
-                      code={value} 
-                      language={language}
-                      className="w-full h-full resize-none border-0"
-                    />
-                  ) : (
-                    <div className="w-full h-full p-4 flex items-center justify-center text-neutral-400 font-mono text-sm">
-                      {readOnly ? "No content to display" : "Enter your code here... (Ctrl+Space for suggestions)"}
-                    </div>
-                  )}
-                  
-                  {/* Invisible textarea for click detection */}
-                  <textarea
-                    ref={textareaRef}
-                    value={value}
-                    onChange={handleTextareaChange}
-                    onFocus={handleFocus}
-                    onKeyDown={handleKeyDown}
-                    className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-transparent border-0 outline-none resize-none text-transparent"
-                    readOnly={readOnly}
-                    spellCheck={false}
-                    style={{
-                      lineHeight: '1.5',
-                      tabSize: 2,
-                    }}
+              {/* Syntax highlighted background - always visible */}
+              <div 
+                className="absolute inset-0 pointer-events-none overflow-hidden"
+                style={{
+                  transform: `translate(-${scrollLeft}px, -${scrollTop}px)`,
+                }}
+              >
+                {value && (
+                  <SyntaxHighlighter 
+                    code={value} 
+                    language={language}
+                    className="w-full h-full resize-none border-0 bg-transparent"
                   />
+                )}
+              </div>
+
+              {/* Transparent textarea for editing */}
+              <textarea
+                ref={textareaRef}
+                value={value}
+                onChange={handleTextareaChange}
+                onScroll={handleScroll}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                className="relative w-full h-full p-4 font-mono text-sm bg-transparent border-0 outline-none resize-none"
+                placeholder={readOnly ? "No content to display" : "Enter your code here... (Ctrl+Space for suggestions)"}
+                readOnly={readOnly}
+                spellCheck={false}
+                style={{
+                  lineHeight: '1.5',
+                  tabSize: 2,
+                  color: 'transparent',
+                  caretColor: '#00ff00',
+                  WebkitTextFillColor: 'transparent',
+                  zIndex: 1,
+                }}
+              />
+
+              {/* Placeholder when empty */}
+              {!value && !readOnly && (
+                <div className="absolute top-4 left-4 text-neutral-400 font-mono text-sm pointer-events-none">
+                  Enter your code here... (Ctrl+Space for suggestions)
+                </div>
+              )}
+
+              {/* Read-only placeholder */}
+              {!value && readOnly && (
+                <div className="absolute inset-0 flex items-center justify-center text-neutral-400 font-mono text-sm pointer-events-none">
+                  No content to display
                 </div>
               )}
             </div>

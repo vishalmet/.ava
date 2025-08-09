@@ -113,10 +113,12 @@ export default function CodeSuggestions({
     const words = textBeforeCursor.split(/\s+/)
     const currentWord = words[words.length - 1] || ''
 
-    // Filter suggestions based on current word
-    const filtered = suggestions[language].filter(suggestion =>
-      suggestion.label.toLowerCase().startsWith(currentWord.toLowerCase())
-    )
+    // Filter suggestions based on current word - more like Cursor IDE
+    const filtered = suggestions[language]
+      .filter(suggestion =>
+        suggestion.label.toLowerCase().startsWith(currentWord.toLowerCase())
+      )
+      .slice(0, 8) // Limit to 8 suggestions like most IDEs
 
     setFilteredSuggestions(filtered)
     setSelectedIndex(0)
