@@ -187,9 +187,9 @@ export default function CodeEditor({
         />
 
         {/* Placeholder when empty */}
-        {!value && !readOnly && (
+        {!value && (
           <div className="absolute top-4 left-4 text-neutral-400 font-mono text-sm pointer-events-none">
-            {placeholder}
+            {readOnly ? "No content found" : placeholder}
           </div>
         )}
       </div>

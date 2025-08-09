@@ -282,7 +282,7 @@ export default function PopupEditor({
               {/* Read-only placeholder */}
               {!value && readOnly && (
                 <div className="absolute inset-0 flex items-center justify-center text-neutral-400 font-mono text-sm pointer-events-none">
-                  No content to display
+                  No content found
                 </div>
               )}
             </div>

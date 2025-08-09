@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft } from "lucide-react"
+import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload } from "lucide-react"
 import { brand } from "@/lib/brand"
 import CodeEditor from "@/components/code-editor"
 
@@ -26,6 +26,8 @@ function getBalance(account: address) -> u64 {
 
   const [targetLanguage, setTargetLanguage] = useState("sol")
   const [convertedCode, setConvertedCode] = useState("")
+  const [isDeploying, setIsDeploying] = useState(false)
+  const [deploymentStatus, setDeploymentStatus] = useState("")
 
   const languages = [
     { value: "sol", label: "Solidity (.sol)", extension: ".sol" },
@@ -132,16 +134,59 @@ impl AvaContract {
     setConvertedCode(mockConversions[targetLanguage as keyof typeof mockConversions])
   }
 
+  // Extract contract name from code for filename
+  const getContractName = (code: string): string => {
+    if (targetLanguage === "sol") {
+      const match = code.match(/contract\s+(\w+)/);
+      return match ? match[1] : "Contract";
+    } else if (targetLanguage === "cairo") {
+      const match = code.match(/#\[contract\]\s*mod\s+(\w+)/) || code.match(/mod\s+(\w+)/);
+      return match ? match[1] : "Contract";
+    } else if (targetLanguage === "rs") {
+      const match = code.match(/struct\s+(\w+)/) || code.match(/impl\s+(\w+)/);
+      return match ? match[1] : "Contract";
+    }
+    return "Contract";
+  }
+
+  const handleDeploy = async () => {
+    if (!convertedCode) {
+      setDeploymentStatus("Please convert code first");
+      setTimeout(() => setDeploymentStatus(""), 3000);
+      return;
+    }
+
+    setIsDeploying(true);
+    setDeploymentStatus("Deploying to Avalanche...");
+
+    try {
+      // Mock deployment process
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const contractName = getContractName(convertedCode);
+      const mockAddress = "0x" + Math.random().toString(16).substr(2, 40);
+      
+      setDeploymentStatus(`✅ ${contractName} deployed successfully at ${mockAddress}`);
+      setTimeout(() => setDeploymentStatus(""), 10000);
+    } catch (error) {
+      setDeploymentStatus("❌ Deployment failed. Please try again.");
+      setTimeout(() => setDeploymentStatus(""), 5000);
+    } finally {
+      setIsDeploying(false);
+    }
+  }
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
 
   const downloadCode = (code: string, extension: string) => {
+    const contractName = getContractName(code);
     const blob = new Blob([code], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `converted_code${extension}`
+    a.download = `${contractName}${extension}`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
@@ -256,52 +301,76 @@ impl AvaContract {
           </div>
         </motion.div>
 
-        {/* Convert Button */}
+        {/* Convert & Deploy Buttons */}
         <motion.div 
-          className="flex justify-center mt-8"
+          className="flex flex-col items-center gap-4 mt-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
         >
-          <Button
-            onClick={handleConvert}
-            size="lg"
-            className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-            style={{
-              backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-            }}
-          >
-            <ArrowRight className="mr-2 h-4 w-4" />
-            Convert to {languages.find(l => l.value === targetLanguage)?.label}
-          </Button>
-        </motion.div>
+          <div className="flex gap-4">
+            <Button
+              onClick={handleConvert}
+              size="lg"
+              className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+              style={{
+                backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
+              }}
+            >
+              <ArrowRight className="mr-2 h-4 w-4" />
+              Convert to {languages.find(l => l.value === targetLanguage)?.label}
+            </Button>
 
-        {/* Features */}
-        <motion.div 
-          className="mt-16 grid gap-6 md:grid-cols-3"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-        >
-          {[
-            {
-              title: "Proof of Execution",
-              desc: "Maintains verification properties across all target languages"
-            },
-            {
-              title: "Syntax Preservation",
-              desc: "Logic and functionality preserved in target language idioms"
-            },
-            {
-              title: "Avalanche Optimized",
-              desc: "Generated code optimized for Avalanche network deployment"
-            }
-          ].map((feature, i) => (
-            <Card key={i} className="p-6 text-center">
-              <h4 className="font-semibold mb-2">{feature.title}</h4>
-              <p className="text-sm text-neutral-600">{feature.desc}</p>
-            </Card>
-          ))}
+            {convertedCode && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Button
+                  onClick={handleDeploy}
+                  size="lg"
+                  variant="outline"
+                  disabled={isDeploying}
+                  className="border-2 font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+                  style={{
+                    borderColor: brand.colors.primaryFrom,
+                    color: brand.colors.primaryFrom,
+                  }}
+                >
+                  {isDeploying ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Deploy to Avalanche
+                    </>
+                  )}
+                </Button>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Deployment Status */}
+          {deploymentStatus && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+                deploymentStatus.includes('✅') 
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : deploymentStatus.includes('❌')
+                  ? 'bg-red-50 text-red-700 border border-red-200'
+                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+              }`}
+            >
+              {deploymentStatus}
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </div>
