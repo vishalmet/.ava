@@ -14,8 +14,8 @@ export default function FeatureCards() {
       icon: Zap,
     },
     {
-      title: "Spam Prevention",
-      desc: "Computational cost prevents fake deployments.",
+      title: "Execution Integrity",
+      desc: "Verify program behavior matches intended logic.",
       icon: Shield,
     },
     {
