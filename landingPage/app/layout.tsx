@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import PageLoader from '@/components/page-loader'
+import NavigationLoader from '@/components/navigation-loader'
 
 export const metadata: Metadata = {
   title: '.ava - Exclusive Programming Language for Avalanche',
@@ -33,7 +35,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <PageLoader />
+        <NavigationLoader />
+        {children}
+      </body>
     </html>
   )
 }

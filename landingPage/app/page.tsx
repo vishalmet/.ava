@@ -13,7 +13,7 @@ import ConverterCta from "@/components/converter-cta"
 import AvalancheCta from "@/components/avalanche-cta"
 import Faq from "@/components/faq"
 import ScrollToTop from "@/components/scroll-to-top"
-import PageLoader from "@/components/page-loader"
+
 import { brand } from "@/lib/brand"
 
 export default function Page() {
@@ -21,7 +21,6 @@ export default function Page() {
 
   return (
     <>
-      <PageLoader />
       <div className="flex min-h-screen flex-col relative w-full">
         {/* Diagonal Stripes Background */}
         <motion.div
