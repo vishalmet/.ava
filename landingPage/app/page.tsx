@@ -62,7 +62,7 @@ export default function Page() {
                   <Sparkles className="absolute -right-2 -top-2 h-4 w-4 text-rose-500" aria-hidden="true" />
                 </motion.div>
               </div>
-              <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">ava</span>
+              <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">.ava</span>
               <span className="sr-only">ava Home</span>
             </Link>
           </motion.div>
