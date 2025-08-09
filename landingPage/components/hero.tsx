@@ -12,7 +12,7 @@ export default function Hero() {
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } }
   const item = {
     hidden: { opacity: 0, y: 18 },
-    show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 70 } },
+    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 70 } },
   }
 
   return (
@@ -50,7 +50,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5 text-rose-500" />
-            No‑code dApp builder
+            dApp builder
           </motion.div>
 
           <motion.h1 variants={item} className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
@@ -101,7 +101,7 @@ export default function Hero() {
             variants={item}
             className="relative mx-auto mt-10 w-full max-w-4xl overflow-hidden rounded-2xl border bg-white shadow-lg"
             whileHover={{ y: -2 }}
-            transition={{ type: "spring", stiffness: 120, damping: 12 }}
+            transition={{ type: "spring" as const, stiffness: 120, damping: 12 }}
           >
             <div
               className="h-2 w-full"
