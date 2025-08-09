@@ -21,7 +21,17 @@ export default function Page() {
   return (
     <>
       <PageLoader />
-      <div className="flex min-h-[100dvh] flex-col">
+      <div className="flex min-h-[100dvh] flex-col relative">
+        {/* Diagonal Stripes Background */}
+        <motion.div
+          className="fixed inset-0 z-0 opacity-100"
+          style={{
+            backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 0px, #f8fafc 2px, #f8fafc 4px)",
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.3 }}
+          transition={{ duration: 2, ease: "easeOut" }}
+        />
       <motion.header 
         className="sticky top-0 z-50 w-full border-b bg-white/90 backdrop-blur-md supports-[backdrop-filter]:bg-white/75"
         initial={{ y: -100 }}
@@ -187,7 +197,7 @@ export default function Page() {
         </AnimatePresence>
       </motion.header>
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         <Hero />
         <FeatureCards />
         <Steps />
@@ -196,7 +206,7 @@ export default function Page() {
       </main>
 
       <motion.footer 
-        className="border-t bg-gradient-to-r from-neutral-50 to-white"
+        className="border-t bg-gradient-to-r from-neutral-50 to-white relative z-10"
         initial={{ opacity: 0, y: 20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
