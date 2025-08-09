@@ -71,6 +71,7 @@ export default function Page() {
             {[
               { href: "#how-it-works", label: "How it works" },
               { href: "#features", label: "Features" },
+              { href: "/explorer", label: "Explorer" },
               { href: "#faq", label: "FAQ" }
             ].map((item, i) => (
               <motion.div
@@ -170,6 +171,7 @@ export default function Page() {
                 {[
                   { href: "#how-it-works", label: "How it works" },
                   { href: "#features", label: "Features" },
+                  { href: "/explorer", label: "Explorer" },
                   { href: "#faq", label: "FAQ" }
                 ].map((item, i) => (
                   <motion.div
