@@ -2,22 +2,22 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'SparkDapp - No-Code dApp Builder for Avalanche',
-  description: 'Build and launch decentralized applications on Avalanche from a simple prompt. No coding required - generate UI, smart contracts, and deploy to mainnet in minutes.',
+  title: '.ava - Exclusive Programming Language for Avalanche',
+  description: 'Write once, verify everywhere — with built-in Proof of Work.',
   keywords: ['dApp', 'Avalanche', 'No-code', 'Smart contracts', 'Blockchain', 'Web3', 'DeFi'],
-  authors: [{ name: 'SparkDapp Team' }],
-  creator: 'SparkDapp',
-  publisher: 'SparkDapp',
+  authors: [{ name: '.ava Team' }],
+  creator: '.ava',
+  publisher: '.ava',
   openGraph: {
-    title: 'SparkDapp - No-Code dApp Builder for Avalanche',
-    description: 'Build and launch decentralized applications on Avalanche from a simple prompt. No coding required.',
+    title: '.ava - Exclusive Programming Language for Avalanche',
+    description: 'Write once, verify everywhere — with built-in Proof of Work.',
     type: 'website',
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SparkDapp - No-Code dApp Builder for Avalanche',
-    description: 'Build and launch decentralized applications on Avalanche from a simple prompt. No coding required.',
+    title: '.ava - Exclusive Programming Language for Avalanche',
+    description: 'Write once, verify everywhere — with built-in Proof of Work.',
   },
   robots: {
     index: true,
