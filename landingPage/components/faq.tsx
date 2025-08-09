@@ -44,7 +44,7 @@ export default function Faq() {
             </div>
             <h3 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Questions, answered</h3>
             <p className="mx-auto mt-2 max-w-[65ch] text-neutral-600">
-              Everything you need to know about prompts, components, contracts, and deploying to Avalanche.
+              Everything you need to know about ava programming, Proof of Work, and multi-target compilation.
             </p>
           </motion.div>
 
@@ -58,10 +58,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-1" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Do I need to write code?
+                    How does Proof of Work generation work?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    No — you can ship end‑to‑end without touching code. If you want, you can export the project anytime.
+                    Every ava program automatically generates Proof of Work during execution. This ensures computational integrity and enables verifiable computing without additional setup.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -69,10 +69,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-2" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Can I change layouts later?
+                    Which target languages are supported?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    Yes. Swap components freely while we keep your bindings and actions intact.
+                    ava can compile to Solidity (.sol), Cairo (.cairo), and Rust (.rs). Each compilation maintains the same verification properties and Proof of Work guarantees.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -80,10 +80,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-3" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Which networks are supported?
+                    How is onchain verification handled?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    Avalanche Mainnet and Fuji testnet are supported out of the box.
+                    All program actions are recorded onchain with cryptographic proofs. Anyone can verify the execution history and computational integrity at any time.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -91,10 +91,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-4" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Can I bring my own contract?
+                    Can I integrate ava with existing codebases?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    You can use the generated one or import your own and deploy through our flow.
+                    Yes. Compile ava programs to your target language and integrate the generated code into existing projects while maintaining verification capabilities.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>

@@ -62,8 +62,8 @@ export default function Page() {
                   <Sparkles className="absolute -right-2 -top-2 h-4 w-4 text-rose-500" aria-hidden="true" />
                 </motion.div>
               </div>
-              <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">SparkDapp</span>
-              <span className="sr-only">SparkDapp Home</span>
+              <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">ava</span>
+              <span className="sr-only">ava Home</span>
             </Link>
           </motion.div>
           
@@ -101,7 +101,7 @@ export default function Page() {
                   backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
                 }}
               >
-                Launch App
+                Try ava
               </Button>
             </motion.div>
           </div>
@@ -171,7 +171,7 @@ export default function Page() {
                 ))}
                 <div className="flex items-center gap-3 pt-4 border-t">
                   <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
-                    No code
+                    Verifiable
                   </Badge>
                   <Button
                     className="text-white font-medium flex-1"
@@ -179,7 +179,7 @@ export default function Page() {
                       backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
                     }}
                   >
-                    Launch App
+                    Try ava
                   </Button>
                 </div>
               </div>
@@ -213,7 +213,7 @@ export default function Page() {
           >
             {"© "}
             {new Date().getFullYear()}
-            {" SparkDapp. All rights reserved."}
+            {" ava. All rights reserved."}
           </motion.p>
           <motion.nav 
             className="flex items-center gap-6 text-sm"

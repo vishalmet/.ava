@@ -1,7 +1,7 @@
 export const brand = {
-  name: "SparkDapp",
-  tagline: "No-Code dApp Builder for Avalanche",
-  description: "Build and launch decentralized applications on Avalanche from a simple prompt. No coding required - generate UI, smart contracts, and deploy to mainnet in minutes.",
+  name: "ava",
+  tagline: "Verifiable Programming Language",
+  description: "Write programs in ava that generate Proof of Work, execute fully onchain with verification, and compile to Solidity, Cairo, and Rust.",
   colors: {
     // Avalanche-inspired warm, bright palette
     primaryFrom: "#e84142", // avalanche red

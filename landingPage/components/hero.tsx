@@ -50,7 +50,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5 text-rose-500" />
-            dApp builder
+            Programming language
           </motion.div>
 
           <motion.h1 variants={item} className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
@@ -60,14 +60,13 @@ export default function Hero() {
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              Build and launch on Avalanche
+              Write verifiable programs
             </span>{" "}
-            from a prompt.
+            with built-in Proof of Work.
           </motion.h1>
 
           <motion.p variants={item} className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600 md:text-xl">
-            Describe what you want to ship. {brand.name} generates the app, gives you a contract, and helps you deploy —
-            all in a clean, bright interface.
+            Write programs in {brand.name} that automatically generate Proof of Work. Every action is fully onchain and verifiable, with seamless compilation to Solidity, Cairo, and Rust.
           </motion.p>
 
           <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -78,7 +77,7 @@ export default function Hero() {
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              <Rocket className="mr-2 h-4 w-4" /> Get started
+              <Rocket className="mr-2 h-4 w-4" /> Start coding
             </Button>
             <Link
               href="#features"
@@ -90,10 +89,10 @@ export default function Hero() {
 
           <motion.div variants={item} className="mt-6 flex items-center justify-center gap-2">
             <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
-              Contracts included
+              Proof of Work
             </Badge>
             <Badge variant="secondary" className="border-rose-200 bg-rose-50 text-rose-700">
-              Avalanche ready
+              Multi-target
             </Badge>
           </motion.div>
 
@@ -111,8 +110,8 @@ export default function Hero() {
             />
             <div className="p-4 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DemoCard title="UI generated" />
-                <DemoCard title="Contract ready" tint="orange" />
+                <DemoCard title="ava Program" />
+                <DemoCard title="PoW Generated" tint="orange" />
               </div>
             </div>
           </motion.div>
@@ -129,7 +128,7 @@ function DemoCard({ title, tint = "rose" }: { title: string; tint?: "rose" | "or
       <div className={`mb-3 h-10 w-full rounded-md bg-gradient-to-r ${bar}`} />
       <div className="h-24 rounded-lg bg-neutral-50 ring-1 ring-orange-100" />
       <div className="mt-3 text-sm font-medium text-neutral-800">{title}</div>
-      <p className="text-xs text-neutral-500">A crisp, static preview for the landing page.</p>
+      <p className="text-xs text-neutral-500">Verifiable execution with automatic Proof of Work.</p>
     </div>
   )
 }

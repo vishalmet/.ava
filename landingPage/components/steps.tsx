@@ -1,15 +1,15 @@
 "use client"
 
-import { ArrowRight, Edit3, Cpu, FileCode2, Rocket } from "lucide-react"
+import { ArrowRight, Code, Zap, Shield, FileCode2 } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function Steps() {
   const steps = [
-    { title: "Prompt", desc: "Tell us what to build.", icon: Edit3 },
-    { title: "Generate", desc: "We create UI and flows.", icon: Cpu },
-    { title: "Contract", desc: "We prep Solidity for you.", icon: FileCode2 },
-    { title: "Deploy", desc: "Ship on Avalanche.", icon: Rocket },
+    { title: "Write", desc: "Write your program in ava.", icon: Code },
+    { title: "Proof of Work", desc: "PoW is automatically generated.", icon: Zap },
+    { title: "Onchain", desc: "All actions verified onchain.", icon: Shield },
+    { title: "Compile", desc: "Convert to .sol, .cairo, .rs.", icon: FileCode2 },
   ]
 
   return (
@@ -19,8 +19,8 @@ export default function Steps() {
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
             How it works
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Idea to deployment in four steps</h2>
-          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">A simple, bright flow — no code required.</p>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">From code to verification in four steps</h2>
+          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">Write once, verify everywhere — with built-in Proof of Work.</p>
         </div>
         <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-4">
           {steps.map((s, i) => (

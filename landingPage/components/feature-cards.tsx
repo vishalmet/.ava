@@ -2,31 +2,31 @@
 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Sparkles, Replace, FileCode2, Rocket } from "lucide-react"
+import { Zap, Shield, FileCode2, Target } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function FeatureCards() {
   const features = [
     {
-      title: "Prompt → App",
-      desc: "Go from idea to screens, flows, and data in minutes.",
-      icon: Sparkles,
+      title: "Proof of Work",
+      desc: "Automatic PoW generation for every program execution.",
+      icon: Zap,
     },
     {
-      title: "Component Freedom",
-      desc: "Swap layouts and blocks without breaking logic.",
-      icon: Replace,
+      title: "Onchain Verification",
+      desc: "All actions are fully verifiable on the blockchain.",
+      icon: Shield,
     },
     {
-      title: "Smart Contracts",
-      desc: "Production‑ready Solidity with sensible defaults.",
+      title: "Multi-Language",
+      desc: "Compile to Solidity, Cairo, and Rust seamlessly.",
       icon: FileCode2,
     },
     {
-      title: "Avalanche Deploy",
-      desc: "One‑click deploy to Mainnet or Fuji with verification.",
-      icon: Rocket,
+      title: "Universal Target",
+      desc: "Deploy anywhere with consistent verification.",
+      icon: Target,
     },
   ]
 
@@ -59,13 +59,13 @@ export default function FeatureCards() {
       <div className="container px-4 py-16 md:py-24">
         <div className="text-center">
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
-            Designed for speed
+            Built for verification
           </div>
           <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything you need to ship bright, fast
+            Everything you need for verifiable computing
           </h2>
           <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
-            A clear, vibrant toolkit aligned around Avalanche‑first shipping.
+            A powerful language with built-in Proof of Work and multi-target compilation.
           </p>
         </div>
         <motion.div
