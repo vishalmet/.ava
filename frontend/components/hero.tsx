@@ -9,6 +9,36 @@ import Orbs from "./orbs"
 import { brand } from "@/lib/brand"
 
 export default function Hero() {
+  const handleDownload = async (platform: string, version: string) => {
+    try {
+      const response = await fetch('/api/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ platform, version }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Download failed')
+      }
+
+      // Create blob and download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ava-${platform.toLowerCase()}-installer.png`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Download error:', error)
+      // Fallback to direct download
+      window.open('/icon.png', '_blank')
+    }
+  }
   const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } }
   const item = {
     hidden: { opacity: 0, y: 18 },
@@ -76,6 +106,7 @@ export default function Hero() {
               style={{
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
+              onClick={() => handleDownload('Windows', 'x64-user')}
             >
               <Monitor className="mr-1 h-5 w-5" /> Download for Windows
             </Button>
