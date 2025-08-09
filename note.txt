@@ -1,0 +1,28 @@
+# {"ack": true, "pow_always": true, "pow_bits": 12}
+
+To require pk and set toggles:
+First line in .x3:
+{"pk":"YOUR_PRIVATE_KEY", "pow_always": true, "pow_bits": 16, "show_json": false}
+
+
+
+-----------------------------------------------------------------------------------------------------
+
+
+--no-json: hide JSON output for the whole session
+--json: re-enable JSON output for the session
+You can also prefix a single command with --no-json to hide JSON only for that execution.
+Header show_json still works but cannot override a CLI --no-json.
+Added a welcome screen at startup:
+Title: ava — The Decentralized Programming Language
+Version and quick tips (help(), --no-json)
+Run examples:
+python shell.py --no-json
+[.ava] >>> --no-json
+[.ava] >>> help()
+
+
+-----------------------------------------------------------------------------------------------------
+
+
+exit, convert, deploy
