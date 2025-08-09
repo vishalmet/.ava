@@ -291,7 +291,7 @@ while True:
             if not self._enabled:
                 return
             # Modern braille spinner with subtle color cycling
-            frames = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏']
+            frames = ['⠋ ','⠙ ','⠹ ','⠸ ','⠼ ','⠴ ','⠦ ','⠧ ','⠇ ','⠏ ']
             colors = [
                 COLOR.get('cyan', ''),
                 COLOR.get('magenta', ''),
