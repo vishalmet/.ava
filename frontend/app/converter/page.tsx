@@ -73,7 +73,7 @@ function getBalance(account: address) -> u64 {
         
         // Adjust speed based on character type for more realistic typing
         const char = line[j]
-        let delay = 20 // Default delay
+        let delay = 10 // Default delay
         
         if (char === ' ') delay = 8 // Faster for spaces
         else if (char.match(/[{}();,]/)) delay = 10 // Slower for syntax
