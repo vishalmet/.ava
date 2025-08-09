@@ -72,7 +72,6 @@ export default function Page() {
             {[
               { href: "#how-it-works", label: "How it works" },
               { href: "#features", label: "Features" },
-              { href: "/converter", label: "Converter" },
               { href: "#faq", label: "FAQ" }
             ].map((item, i) => (
               <motion.div
@@ -110,14 +109,16 @@ export default function Page() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-              <Button
-                className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-                style={{
-                  backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-                }}
-              >
-                Try ava
-              </Button>
+              <Link href="/converter">
+                <Button
+                  className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300"
+                  style={{
+                    backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
+                  }}
+                >
+                  ava Converter
+                </Button>
+              </Link>
             </motion.div>
           </div>
 
@@ -170,7 +171,6 @@ export default function Page() {
                 {[
                   { href: "#how-it-works", label: "How it works" },
                   { href: "#features", label: "Features" },
-                  { href: "/converter", label: "Converter" },
                   { href: "#faq", label: "FAQ" }
                 ].map((item, i) => (
                   <motion.div
@@ -202,14 +202,16 @@ export default function Page() {
                   <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
                     Verifiable
                   </Badge>
-                  <Button
-                    className="text-white font-medium flex-1"
-                    style={{
-                      backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-                    }}
-                  >
-                    Try ava
-                  </Button>
+                  <Link href="/converter" className="flex-1">
+                    <Button
+                      className="text-white font-medium w-full"
+                      style={{
+                        backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
+                      }}
+                    >
+                      .ava Converter
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </motion.div>
