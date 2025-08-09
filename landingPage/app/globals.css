@@ -116,10 +116,64 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
+  html {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+  
+  /* Ensure container doesn't exceed viewport */
+  .container {
+    width: 100%;
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+  
+  /* Prevent any element from causing horizontal overflow */
+  * {
+    max-width: 100%;
+  }
+  
+  /* Ensure no absolutely positioned elements cause overflow */
+  *[class*="absolute"], *[class*="fixed"] {
+    max-width: 100vw;
+  }
+  
+  /* Specific fix for main wrapper */
+  #__next, [data-reactroot] {
+    width: 100%;
+    overflow-x: hidden;
   }
   
   /* Smooth scrolling for anchor links */

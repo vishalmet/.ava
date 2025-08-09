@@ -19,14 +19,14 @@ export default function Hero() {
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 -z-10">
         <Orbs
-          className="absolute -left-12 -top-16"
+          className="absolute left-0 -top-16 -translate-x-1/2"
           color={"rgb(232 65 66 / 0.25)"}
           size={280}
           blur={90}
           duration={14}
         />
         <Orbs
-          className="absolute right-0 top-24"
+          className="absolute right-0 top-24 translate-x-1/2"
           color={"rgb(245 158 11 / 0.25)"}
           size={260}
           blur={90}

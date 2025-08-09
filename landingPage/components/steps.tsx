@@ -62,7 +62,7 @@ export default function Steps() {
                   whileInView={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.1 + 0.3 }}
                 >
-                  <ArrowRight className="absolute -right-3 top-1/2 -translate-y-1/2 h-6 w-6 text-neutral-300" aria-hidden="true" />
+                  <ArrowRight className="absolute -right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-neutral-300" aria-hidden="true" />
                 </motion.div>
               )}
             </motion.div>
