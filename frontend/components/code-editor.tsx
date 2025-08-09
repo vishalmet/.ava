@@ -150,9 +150,10 @@ export default function CodeEditor({
       <div className="relative border rounded-lg overflow-hidden" style={{ backgroundColor: '#1e1e1e' }}>
         {/* Syntax highlighted background - always visible */}
         <div 
-          className="absolute inset-0 pointer-events-none overflow-hidden"
+          className="absolute inset-0 pointer-events-none"
           style={{
             transform: `translate(-${scrollLeft}px, -${scrollTop}px)`,
+            overflow: 'visible',
           }}
         >
           {value && (

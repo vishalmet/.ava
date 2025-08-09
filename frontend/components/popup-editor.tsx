@@ -235,9 +235,10 @@ export default function PopupEditor({
             <div ref={editorRef} className="relative flex-1 overflow-hidden" style={{ height: 'calc(80vh - 73px)', backgroundColor: '#1e1e1e' }}>
               {/* Syntax highlighted background - always visible */}
               <div 
-                className="absolute inset-0 pointer-events-none overflow-hidden"
+                className="absolute inset-0 pointer-events-none"
                 style={{
                   transform: `translate(-${scrollLeft}px, -${scrollTop}px)`,
+                  overflow: 'visible',
                 }}
               >
                 {value && (
