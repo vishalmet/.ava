@@ -1291,6 +1291,21 @@ class RTResult:
     self.loop_should_break = res.loop_should_break
     return res.value
 
+  def success(self, value):
+    self.reset()
+    self.value = value
+    return self
+
+  def success_return(self, value):
+    self.reset()
+    self.func_return_value = value
+    return self
+  
+  def success_continue(self):
+    self.reset()
+    self.loop_should_continue = True
+    return self
+
   def success_break(self):
     self.reset()
     self.loop_should_break = True
