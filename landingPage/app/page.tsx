@@ -9,6 +9,7 @@ import { useState } from "react"
 import Hero from "@/components/hero"
 import FeatureCards from "@/components/feature-cards"
 import Steps from "@/components/steps"
+import ConverterCta from "@/components/converter-cta"
 import AvalancheCta from "@/components/avalanche-cta"
 import Faq from "@/components/faq"
 import ScrollToTop from "@/components/scroll-to-top"
@@ -71,19 +72,33 @@ export default function Page() {
             {[
               { href: "#how-it-works", label: "How it works" },
               { href: "#features", label: "Features" },
+              { href: "/converter", label: "Converter" },
               { href: "#faq", label: "FAQ" }
             ].map((item, i) => (
-              <motion.a
+              <motion.div
                 key={item.href}
-                href={item.href}
-                className="text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors relative group"
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 + i * 0.1 }}
               >
-                {item.label}
-                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-rose-500 to-orange-500 group-hover:w-full transition-all duration-300"></span>
-              </motion.a>
+                {item.href.startsWith('#') ? (
+                  <a
+                    href={item.href}
+                    className="text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors relative group"
+                  >
+                    {item.label}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-rose-500 to-orange-500 group-hover:w-full transition-all duration-300"></span>
+                  </a>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className="text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors relative group"
+                  >
+                    {item.label}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-rose-500 to-orange-500 group-hover:w-full transition-all duration-300"></span>
+                  </Link>
+                )}
+              </motion.div>
             ))}
           </nav>
           
@@ -155,19 +170,33 @@ export default function Page() {
                 {[
                   { href: "#how-it-works", label: "How it works" },
                   { href: "#features", label: "Features" },
+                  { href: "/converter", label: "Converter" },
                   { href: "#faq", label: "FAQ" }
                 ].map((item, i) => (
-                  <motion.a
+                  <motion.div
                     key={item.href}
-                    href={item.href}
-                    className="block text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors py-2"
-                    onClick={() => setIsMobileMenuOpen(false)}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
                   >
-                    {item.label}
-                  </motion.a>
+                    {item.href.startsWith('#') ? (
+                      <a
+                        href={item.href}
+                        className="block text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors py-2"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {item.label}
+                      </a>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className="block text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors py-2"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {item.label}
+                      </Link>
+                    )}
+                  </motion.div>
                 ))}
                 <div className="flex items-center gap-3 pt-4 border-t">
                   <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
@@ -192,6 +221,7 @@ export default function Page() {
         <Hero />
         <FeatureCards />
         <Steps />
+        <ConverterCta />
         {/* <AvalancheCta /> */}
         <Faq />
       </main>

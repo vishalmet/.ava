@@ -1,22 +1,31 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function PageLoader() {
+  const [isVisible, setIsVisible] = useState(true)
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(false)
+    }, 1300) // 0.5s delay + 0.8s animation
+
+    return () => clearTimeout(timer)
+  }, [])
+
   return (
-    <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-white"
-      initial={{ opacity: 1 }}
-      animate={{ opacity: 0 }}
-      transition={{ duration: 0.8, delay: 0.5 }}
-      style={{ pointerEvents: "none" }}
-      onAnimationComplete={() => {
-        const element = document.getElementById("page-loader")
-        if (element) element.remove()
-      }}
-      id="page-loader"
-    >
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-white"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          style={{ pointerEvents: "none" }}
+        >
       <motion.div
         className="flex flex-col items-center gap-4"
         initial={{ scale: 0.8, opacity: 0 }}
@@ -44,9 +53,11 @@ export default function PageLoader() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          Loading SparkDapp...
+          Loading .ava
         </motion.p>
       </motion.div>
-    </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
