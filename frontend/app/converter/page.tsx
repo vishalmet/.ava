@@ -15,17 +15,28 @@ import { brand } from "@/lib/brand"
 import CodeEditor from "@/components/code-editor"
 
 export default function ConverterPage() {
-  const [avaCode, setAvaCode] = useState(`// Sample .ava program
-function transfer(to: address, amount: u64) {
-    require(balance[msg.sender] >= amount, "Insufficient balance");
-    balance[msg.sender] -= amount;
-    balance[to] += amount;
-    emit Transfer(msg.sender, to, amount);
-}
+  const [avaCode, setAvaCode] = useState(`
+var message = "Welcome!"
+var tips = []
+var total_donated = 0
 
-function getBalance(account: address) -> u64 {
-    return balance[account];
-}`)
+fun setMessage(newMessage)
+  var message = newMessage
+  return null
+end
+
+fun getMessage() -> message
+
+fun buyCoffee(note)
+  var tip = ["from","amount",note,"time"]
+  add(tips, tip)
+  var total_donated = total_donated + 1
+  return null
+end
+
+fun getTipsCount() -> len(tips)
+
+fun getTip(i) -> tips / i`)
 
   const [targetLanguage, setTargetLanguage] = useState("sol")
   const [convertedCode, setConvertedCode] = useState("")
