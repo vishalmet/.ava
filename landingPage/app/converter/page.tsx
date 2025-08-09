@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft } from "lucide-react"
 import { brand } from "@/lib/brand"
+import CodeEditor from "@/components/code-editor"
 
 export default function ConverterPage() {
   const [avaCode, setAvaCode] = useState(`// Sample .ava program
@@ -224,92 +225,47 @@ impl AvaContract {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           {/* Input Side - .ava Code */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div
-                  className="h-3 w-3 rounded-full"
-                  style={{
-                    backgroundImage: `linear-gradient(135deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-                  }}
-                />
-                <h3 className="font-semibold text-lg">.ava Program</h3>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                Input
-              </Badge>
-            </div>
-            <div className="relative">
-              <textarea
-                value={avaCode}
-                onChange={(e) => setAvaCode(e.target.value)}
-                className="w-full h-96 p-4 font-mono text-sm bg-neutral-50 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-transparent"
-                placeholder="Enter your .ava code here..."
-                spellCheck={false}
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="absolute top-2 right-2"
-                onClick={() => copyToClipboard(avaCode)}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
-          </Card>
+          <div className="bg-white border rounded-lg p-6 shadow-sm">
+            <CodeEditor
+              value={avaCode}
+              onChange={setAvaCode}
+              language="ava"
+              title=".ava Program"
+              badge="Input"
+              placeholder="Enter your .ava code here..."
+              onCopy={() => copyToClipboard(avaCode)}
+            />
+          </div>
 
           {/* Output Side - Converted Code */}
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                <h3 className="font-semibold text-lg">Converted Code</h3>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Badge variant="outline" className="text-xs">
-                Output
-              </Badge>
+          <div className="bg-white border rounded-lg p-6 shadow-sm">
+            <div className="flex items-center gap-4 mb-4">
+              <h3 className="font-semibold text-lg">Target Language</h3>
+              <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {languages.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            
-            <div className="relative">
-              <textarea
-                value={convertedCode}
-                readOnly
-                className="w-full h-96 p-4 font-mono text-sm bg-neutral-50 border rounded-lg resize-none focus:outline-none"
-                placeholder="Converted code will appear here..."
-                spellCheck={false}
-              />
-              {convertedCode && (
-                <div className="absolute top-2 right-2 flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => copyToClipboard(convertedCode)}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => downloadCode(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')}
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
-            </div>
-          </Card>
+            <CodeEditor
+              value={convertedCode}
+              language={targetLanguage as "sol" | "cairo" | "rs"}
+              title="Converted Code"
+              badge="Output"
+              placeholder="Converted code will appear here..."
+              readOnly
+              onCopy={() => copyToClipboard(convertedCode)}
+              onDownload={() => downloadCode(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')}
+              downloadExtension={languages.find(l => l.value === targetLanguage)?.extension}
+            />
+          </div>
         </motion.div>
 
         {/* Convert Button */}

@@ -286,3 +286,10 @@
     @apply opacity-100;
   }
 }
+
+/* Syntax highlighting styles */
+.syntax-keywords { color: #569cd6 !important; }
+.syntax-strings { color: #ce9178 !important; }
+.syntax-comments { color: #6a9955 !important; }
+.syntax-numbers { color: #b5cea8 !important; }
+.syntax-functions { color: #dcdcaa !important; }
