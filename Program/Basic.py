@@ -1325,6 +1325,10 @@ class RTResult:
       self.loop_should_break
     )
 
+#######################################
+# VALUES
+#######################################
+
 class Value:
   def __init__(self):
     self.set_pos()
@@ -1334,3 +1338,19 @@ class Value:
     self.pos_start = pos_start
     self.pos_end = pos_end
     return self
+
+  def set_context(self, context=None):
+    self.context = context
+    return self
+
+  def added_to(self, other):
+    return None, self.illegal_operation(other)
+
+  def subbed_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def multed_by(self, other):
+    return None, self.illegal_operation(other)
+
+  def dived_by(self, other):
+    return None, self.illegal_operation(other)
