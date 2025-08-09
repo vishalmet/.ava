@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { X, Copy, Download } from "lucide-react"
 import SyntaxHighlighter from "./syntax-highlighter"
+import CodeSuggestions from "./code-suggestions"
 
 interface PopupEditorProps {
   isOpen: boolean
@@ -32,11 +33,26 @@ export default function PopupEditor({
   const [isEditing, setIsEditing] = useState(false)
   const [scrollTop, setScrollTop] = useState(0)
   const [scrollLeft, setScrollLeft] = useState(0)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [cursorPosition, setCursorPosition] = useState(0)
+  const [suggestionPosition, setSuggestionPosition] = useState({ x: 0, y: 0 })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const editorRef = useRef<HTMLDivElement>(null)
 
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     if (onChange) {
       onChange(e.target.value)
+    }
+    setCursorPosition(e.target.selectionStart)
+    
+    // Show suggestions when typing if not read-only
+    if (!readOnly) {
+      const shouldShowSuggestions = e.target.value.length > 0
+      setShowSuggestions(shouldShowSuggestions)
+      
+      if (shouldShowSuggestions) {
+        updateSuggestionPosition()
+      }
     }
   }
 
@@ -53,6 +69,67 @@ export default function PopupEditor({
 
   const handleBlur = () => {
     setIsEditing(false)
+    // Don't immediately hide suggestions, let them handle their own hiding
+  }
+
+  const updateSuggestionPosition = () => {
+    if (!textareaRef.current || !editorRef.current) return
+    
+    const textarea = textareaRef.current
+    const rect = textarea.getBoundingClientRect()
+    
+    // Simple positioning - place suggestions near cursor
+    setSuggestionPosition({
+      x: rect.left + 20,
+      y: rect.top + 100
+    })
+  }
+
+  const handleSuggestionSelect = (suggestion: any) => {
+    if (!onChange || !textareaRef.current) return
+    
+    const textarea = textareaRef.current
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    
+    // Get the word being replaced
+    const textBefore = value.substring(0, start)
+    const textAfter = value.substring(end)
+    const words = textBefore.split(/\s+/)
+    const currentWord = words[words.length - 1] || ''
+    
+    // Replace the current word with the suggestion
+    const newTextBefore = textBefore.substring(0, textBefore.length - currentWord.length)
+    const newValue = newTextBefore + suggestion.insertText + textAfter
+    
+    onChange(newValue)
+    setShowSuggestions(false)
+    
+    // Focus back to textarea
+    setTimeout(() => {
+      textarea.focus()
+      const newCursorPos = newTextBefore.length + suggestion.insertText.length
+      textarea.setSelectionRange(newCursorPos, newCursorPos)
+    }, 0)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Handle Ctrl+Space to trigger suggestions
+    if (e.ctrlKey && e.code === 'Space') {
+      e.preventDefault()
+      setShowSuggestions(true)
+      updateSuggestionPosition()
+      return
+    }
+    
+    // Update cursor position on arrow keys
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) {
+      setTimeout(() => {
+        if (textareaRef.current) {
+          setCursorPosition(textareaRef.current.selectionStart)
+        }
+      }, 0)
+    }
   }
 
   const handleCopy = () => {
@@ -138,59 +215,72 @@ export default function PopupEditor({
             </div>
 
             {/* Editor Content */}
-            <div className="relative flex-1 overflow-hidden" style={{ height: 'calc(80vh - 73px)' }}>
-              {/* Dark background */}
-              <div 
-                className="absolute inset-0 -z-10"
-                style={{ backgroundColor: '#1e1e1e' }}
-              />
-
-              {/* Syntax highlighted background - always show */}
-              <div 
-                className="absolute inset-0 pointer-events-none overflow-hidden"
-                style={{
-                  transform: `translate(-${scrollLeft}px, -${scrollTop}px)`,
-                }}
-              >
-                {value && (
-                  <SyntaxHighlighter 
-                    code={value} 
-                    language={language}
-                    className="w-full h-full resize-none border-0 bg-transparent"
+            <div ref={editorRef} className="relative flex-1 overflow-hidden" style={{ height: 'calc(80vh - 73px)', backgroundColor: '#1e1e1e' }}>
+              {isEditing && !readOnly ? (
+                // Show regular textarea when editing
+                <textarea
+                  ref={textareaRef}
+                  value={value}
+                  onChange={handleTextareaChange}
+                  onScroll={handleScroll}
+                  onFocus={handleFocus}
+                  onBlur={handleBlur}
+                  onKeyDown={handleKeyDown}
+                  className="w-full h-full p-4 font-mono text-sm text-white bg-transparent border-0 outline-none resize-none"
+                  placeholder={readOnly ? "No content to display" : "Enter your code here... (Ctrl+Space for suggestions)"}
+                  readOnly={readOnly}
+                  spellCheck={false}
+                  style={{
+                    lineHeight: '1.5',
+                    tabSize: 2,
+                    caretColor: '#00ff00', // Bright green cursor for visibility
+                    backgroundColor: '#1e1e1e',
+                  }}
+                />
+              ) : (
+                // Show syntax highlighted version when not editing
+                <div className="relative w-full h-full">
+                  {value ? (
+                    <SyntaxHighlighter 
+                      code={value} 
+                      language={language}
+                      className="w-full h-full resize-none border-0"
+                    />
+                  ) : (
+                    <div className="w-full h-full p-4 flex items-center justify-center text-neutral-400 font-mono text-sm">
+                      {readOnly ? "No content to display" : "Enter your code here... (Ctrl+Space for suggestions)"}
+                    </div>
+                  )}
+                  
+                  {/* Invisible textarea for click detection */}
+                  <textarea
+                    ref={textareaRef}
+                    value={value}
+                    onChange={handleTextareaChange}
+                    onFocus={handleFocus}
+                    onKeyDown={handleKeyDown}
+                    className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-transparent border-0 outline-none resize-none text-transparent"
+                    readOnly={readOnly}
+                    spellCheck={false}
+                    style={{
+                      lineHeight: '1.5',
+                      tabSize: 2,
+                    }}
                   />
-                )}
-              </div>
-
-              {/* Textarea for editing - always transparent */}
-              <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={handleTextareaChange}
-                onScroll={handleScroll}
-                onFocus={handleFocus}
-                onBlur={handleBlur}
-                className={`
-                  w-full h-full p-4 font-mono text-sm resize-none border-0 outline-none
-                  bg-transparent text-transparent caret-white
-                  ${readOnly ? 'cursor-default' : 'cursor-text'}
-                `}
-                placeholder={readOnly ? "No content to display" : "Enter your code here..."}
-                readOnly={readOnly}
-                spellCheck={false}
-                style={{
-                  lineHeight: '1.5',
-                  tabSize: 2,
-                }}
-              />
-
-              {/* Fallback for read-only without syntax highlighting */}
-              {readOnly && !value && (
-                <div className="absolute inset-0 flex items-center justify-center text-neutral-400 pointer-events-none">
-                  No content to display
                 </div>
               )}
             </div>
           </motion.div>
+
+          {/* Code Suggestions */}
+          <CodeSuggestions
+            value={value}
+            cursorPosition={cursorPosition}
+            language={language}
+            onSuggestionSelect={handleSuggestionSelect}
+            isVisible={showSuggestions && !readOnly}
+            position={suggestionPosition}
+          />
         </div>
       )}
     </AnimatePresence>

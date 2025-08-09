@@ -114,55 +114,56 @@ export default function CodeEditor({
         </div>
       </div>
 
-      <div className="relative border rounded-lg overflow-hidden">
-        {/* Syntax highlighted background - always show */}
-        <div 
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-          style={{
-            transform: `translate(-${scrollLeft}px, -${scrollTop}px)`,
-          }}
-        >
-          {value && (
-            <SyntaxHighlighter 
-              code={value} 
-              language={language}
-              className="h-96 resize-none border-0 bg-transparent"
+      <div className="relative border rounded-lg overflow-hidden" style={{ backgroundColor: '#1e1e1e' }}>
+        {isEditing && !readOnly ? (
+          // Show regular textarea when editing
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={handleTextareaChange}
+            onScroll={handleScroll}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            className="w-full h-96 p-4 font-mono text-sm text-white bg-transparent border-0 outline-none resize-none"
+            placeholder={placeholder}
+            readOnly={readOnly}
+            spellCheck={false}
+            style={{
+              lineHeight: '1.5',
+              tabSize: 2,
+              caretColor: '#00ff00', // Bright green cursor for visibility
+              backgroundColor: '#1e1e1e',
+            }}
+          />
+        ) : (
+          // Show syntax highlighted version when not editing
+          <div className="relative">
+            {value ? (
+              <SyntaxHighlighter 
+                code={value} 
+                language={language}
+                className="h-96 resize-none border-0"
+              />
+            ) : (
+              <div className="h-96 p-4 flex items-center justify-center text-neutral-400 font-mono text-sm">
+                {placeholder}
+              </div>
+            )}
+            
+            {/* Invisible textarea for click detection */}
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={handleTextareaChange}
+              onFocus={handleFocus}
+              className="absolute inset-0 w-full h-full p-4 font-mono text-sm bg-transparent border-0 outline-none resize-none text-transparent"
+              readOnly={readOnly}
+              spellCheck={false}
+              style={{
+                lineHeight: '1.5',
+                tabSize: 2,
+              }}
             />
-          )}
-        </div>
-
-        {/* Textarea for editing - always transparent */}
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={handleTextareaChange}
-          onScroll={handleScroll}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          className={`
-            w-full h-96 p-4 font-mono text-sm resize-none border-0 outline-none
-            bg-transparent text-transparent caret-white
-            ${readOnly ? 'cursor-default' : 'cursor-text'}
-          `}
-          placeholder={placeholder}
-          readOnly={readOnly}
-          spellCheck={false}
-          style={{
-            lineHeight: '1.5',
-            tabSize: 2,
-          }}
-        />
-
-        {/* Dark background */}
-        <div 
-          className="absolute inset-0 -z-10 rounded-lg"
-          style={{ backgroundColor: '#1e1e1e' }}
-        />
-
-        {/* Fallback for read-only without syntax highlighting */}
-        {readOnly && !value && (
-          <div className="absolute inset-0 flex items-center justify-center text-neutral-400 pointer-events-none">
-            {placeholder}
           </div>
         )}
       </div>

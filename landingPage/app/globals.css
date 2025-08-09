@@ -293,3 +293,14 @@
 .syntax-comments { color: #6a9955 !important; }
 .syntax-numbers { color: #b5cea8 !important; }
 .syntax-functions { color: #dcdcaa !important; }
+
+/* Code editor cursor styles */
+.code-editor-textarea {
+  caret-color: #ffffff !important;
+  -webkit-text-fill-color: transparent;
+}
+
+.code-editor-textarea:focus {
+  caret-color: #ffffff !important;
+  -webkit-text-fill-color: white;
+}
