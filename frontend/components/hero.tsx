@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Rocket, Sparkles } from "lucide-react"
+import { Download, Sparkles, Monitor } from "lucide-react"
 import Orbs from "./orbs"
 import { brand } from "@/lib/brand"
 
@@ -69,21 +69,24 @@ export default function Hero() {
             Write programs in {brand.name} designed exclusively for Avalanche. Compilation generates Proof of Execution for authenticity, leveraging Avalanche's speed and low fees for optimal performance.
           </motion.p>
 
-          <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-3">
+          <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-4">
             <Button
               size="lg"
-              className="text-white"
+              className="text-white font-medium shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-4 text-lg"
               style={{
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              <Rocket className="mr-2 h-4 w-4" /> Start coding
+              <Monitor className="mr-1 h-5 w-5" /> Download for Windows
             </Button>
-            <Link
-              href="#features"
-              className="text-sm font-medium underline underline-offset-4 text-neutral-700 hover:text-neutral-900"
-            >
-              Explore features
+            <Link href="/downloads">
+              <Button
+                size="lg"
+                variant="outline"
+                className="font-medium shadow-sm hover:shadow-md transition-all duration-300 px-6 py-4 text-lg border-2 hover:border-rose-300"
+              >
+                <Download className="mr-1 h-5 w-5" /> All downloads
+              </Button>
             </Link>
           </motion.div>
 
