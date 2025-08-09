@@ -141,6 +141,8 @@ def welcome():
 
 ARGS = sys.argv[1:]
 SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
+# Allow disabling spinner globally via CLI or env
+NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
 
 
 welcome()
@@ -283,25 +285,37 @@ while True:
         def __init__(self):
             self._stop = threading.Event()
             self._t = None
+            self._enabled = (not NO_SPINNER) and bool(getattr(sys.stderr, 'isatty', lambda: False)()) and bool(getattr(sys.stdout, 'isatty', lambda: False)())
         def start(self, label: str):
-            frames = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏']
+            if not self._enabled:
+                return
+            frames = ['|', '/', '-', '\\']
             def run():
                 i = 0
                 while not self._stop.is_set():
                     frame = frames[i % len(frames)]
-                    sys.stdout.write(f"\r{COLOR['dim']}{label} {frame}{COLOR['reset']}")
-                    sys.stdout.flush()
+                    try:
+                        sys.stderr.write(f"\r{label} {frame}")
+                        sys.stderr.flush()
+                    except Exception:
+                        # If stderr write fails, disable animation
+                        break
                     i += 1
                     time.sleep(0.07)
             self._t = threading.Thread(target=run, daemon=True)
             self._t.start()
         def stop(self):
+            if not self._enabled:
+                return
             self._stop.set()
             if self._t:
-                self._t.join(timeout=0.2)
-            # clear line
-            sys.stdout.write("\r" + " " * (_cols()) + "\r")
-            sys.stdout.flush()
+                self._t.join()
+            # clear line on stderr
+            try:
+                sys.stderr.write("\r" + " " * (_cols()) + "\r")
+                sys.stderr.flush()
+            except Exception:
+                pass
 
     spinner = _Spinner()
     label = 'Running'

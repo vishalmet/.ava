@@ -14,7 +14,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 
-from ava_core.ai.llm_convertor import (
+from .llm.llm_core import (
     convert_code_to_language,
     convert_code_to_project_manifest,
 )
