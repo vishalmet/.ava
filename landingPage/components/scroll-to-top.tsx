@@ -38,7 +38,7 @@ export default function ScrollToTop() {
           whileHover={{ scale: 1.1, y: -2 }}
           whileTap={{ scale: 0.9 }}
           onClick={scrollToTop}
-          className="fixed bottom-8 right-8 z-50 p-3 rounded-full text-white shadow-lg hover:shadow-xl transition-all duration-300"
+          className="fixed bottom-8 cursor-pointer right-8 z-50 p-3 rounded-full text-white shadow-lg hover:shadow-xl transition-all duration-300"
           style={{
             backgroundImage: `linear-gradient(135deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
           }}
