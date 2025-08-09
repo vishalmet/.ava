@@ -1797,6 +1797,57 @@ class BuiltInFunction(BaseFunction):
     return RTResult().success(Number.null)
   execute_append.arg_names = ["list", "value"]
 
+  def execute_pop(self, exec_ctx):
+    list_ = exec_ctx.symbol_table.get("list")
+    index = exec_ctx.symbol_table.get("index")
+
+    if not isinstance(list_, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be list",
+        exec_ctx
+      ))
+
+    if not isinstance(index, Number):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be number",
+        exec_ctx
+      ))
+
+    try:
+      element = list_.elements.pop(index.value)
+    except:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        'Element at this index could not be removed from list because index is out of bounds',
+        exec_ctx
+      ))
+    return RTResult().success(element)
+  execute_pop.arg_names = ["list", "index"]
+
+  def execute_extend(self, exec_ctx):
+    listA = exec_ctx.symbol_table.get("listA")
+    listB = exec_ctx.symbol_table.get("listB")
+
+    if not isinstance(listA, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "First argument must be list",
+        exec_ctx
+      ))
+
+    if not isinstance(listB, List):
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        "Second argument must be list",
+        exec_ctx
+      ))
+
+    listA.elements.extend(listB.elements)
+    return RTResult().success(Number.null)
+  execute_extend.arg_names = ["listA", "listB"]
+
   def execute_len(self, exec_ctx):
     list_ = exec_ctx.symbol_table.get("list")
 
@@ -1894,3 +1945,44 @@ BuiltInFunction.pop         = BuiltInFunction("pop")
 BuiltInFunction.extend      = BuiltInFunction("extend")
 BuiltInFunction.len					= BuiltInFunction("len")
 BuiltInFunction.run					= BuiltInFunction("run")
+
+#######################################
+# CONTEXT
+#######################################
+
+class Context:
+  def __init__(self, display_name, parent=None, parent_entry_pos=None):
+    self.display_name = display_name
+    self.parent = parent
+    self.parent_entry_pos = parent_entry_pos
+    self.symbol_table = None
+
+#######################################
+# SYMBOL TABLE
+#######################################
+
+class SymbolTable:
+  def __init__(self, parent=None):
+    self.symbols = {}
+    self.parent = parent
+
+  def get(self, name):
+    value = self.symbols.get(name, None)
+    if value == None and self.parent:
+      return self.parent.get(name)
+    return value
+
+  def set(self, name, value):
+    self.symbols[name] = value
+
+  def remove(self, name):
+    del self.symbols[name]
+
+  def get_all_data(self):
+        all_data = {}
+        # Add symbols from the current symbol table
+        all_data.update(self.symbols)
+        # Recursively add symbols from the parent symbol tables
+        if self.parent:
+            all_data.update(self.parent.get_all_data())
+        return all_data
