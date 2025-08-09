@@ -585,7 +585,6 @@ export default function DownloadsPage() {
                             })}
                           </div>
 
-
                           {/* Chart.js Line Chart */}
                           <div className="relative h-96 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-300 dark:border-neutral-700 p-6 shadow-sm">
                             <Line data={getChartData()!} options={chartOptions} />
