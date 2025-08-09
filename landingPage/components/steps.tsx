@@ -19,7 +19,7 @@ export default function Steps() {
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
             How it works
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Idea to mainnet in four steps</h2>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Idea to deployment in four steps</h2>
           <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">A simple, bright flow — no code required.</p>
         </div>
         <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-4">

@@ -21,7 +21,7 @@ export default function Page() {
   return (
     <>
       <PageLoader />
-      <div className="flex min-h-[100dvh] flex-col relative w-full overflow-x-hidden">
+      <div className="flex min-h-screen flex-col relative w-full">
         {/* Diagonal Stripes Background */}
         <motion.div
           className="fixed inset-0 z-0 opacity-100"
