@@ -44,7 +44,7 @@ export default function Faq() {
             </div>
             <h3 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Questions, answered</h3>
             <p className="mx-auto mt-2 max-w-[65ch] text-neutral-600">
-              Everything you need to know about ava programming, Proof of Work, and multi-target compilation.
+              Everything you need to know about ava programming, Proof of Execution, and Avalanche deployment.
             </p>
           </motion.div>
 
@@ -58,7 +58,7 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-1" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    How does compilation-time Proof of Work work?
+                    How does compilation-time Proof of Execution work?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
                     During compilation, the ava compiler performs a computational challenge (hash puzzle or verifiable computation) that produces a proof artifact. This proof is recorded with your program's hash, ensuring authenticity and preventing spam deployments.
@@ -69,10 +69,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-2" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Which target languages are supported?
+                    Why is ava exclusive to Avalanche?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    ava can compile to Solidity (.sol), Cairo (.cairo), and Rust (.rs). Each compilation maintains the same verification properties and Proof of Work guarantees.
+                    ava is designed specifically for Avalanche's unique architecture, leveraging its sub-second finality, low fees, and high throughput. This exclusive focus allows for optimal performance and native integration with Avalanche's ecosystem.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>
@@ -91,10 +91,10 @@ export default function Faq() {
               <motion.div variants={item}>
                 <AccordionItem value="item-4" className="border-b border-neutral-200">
                   <AccordionTrigger className="hover:no-underline py-6 text-left font-semibold">
-                    Why does cross-chain verification matter?
+                    How does ava leverage Avalanche's performance?
                   </AccordionTrigger>
                   <AccordionContent className="pb-6 text-neutral-600 leading-relaxed">
-                    The PoW proof works whether your code is converted to .sol, .cairo, or .rs. This creates universal trust - any blockchain can verify your code's authenticity and integrity, regardless of the target language.
+                    ava programs are optimized for Avalanche's consensus mechanism and network architecture. This means faster execution, lower gas costs, and seamless integration with Avalanche's subnets and native features.
                   </AccordionContent>
                 </AccordionItem>
               </motion.div>

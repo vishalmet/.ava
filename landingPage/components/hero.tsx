@@ -60,13 +60,13 @@ export default function Hero() {
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              Write verifiable programs
+              Build exclusively for Avalanche
             </span>{" "}
-            with built-in Proof of Work.
+            with verifiable Proof of Execution.
           </motion.h1>
 
           <motion.p variants={item} className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600 md:text-xl">
-            Write programs in {brand.name} where compilation generates Proof of Work for authenticity. Prevent spam, ensure integrity, and deploy with verifiable trust across any blockchain.
+            Write programs in {brand.name} designed exclusively for Avalanche. Compilation generates Proof of Execution for authenticity, leveraging Avalanche's speed and low fees for optimal performance.
           </motion.p>
 
           <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-3">
@@ -89,10 +89,10 @@ export default function Hero() {
 
           <motion.div variants={item} className="mt-6 flex items-center justify-center gap-2">
             <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
-              Authentic
+              Avalanche-native
             </Badge>
             <Badge variant="secondary" className="border-rose-200 bg-rose-50 text-rose-700">
-              Cross-chain
+              High-performance
             </Badge>
           </motion.div>
 
@@ -128,7 +128,7 @@ function DemoCard({ title, tint = "rose" }: { title: string; tint?: "rose" | "or
       <div className={`mb-3 h-10 w-full rounded-md bg-gradient-to-r ${bar}`} />
       <div className="h-24 rounded-lg bg-neutral-50 ring-1 ring-orange-100" />
       <div className="mt-3 text-sm font-medium text-neutral-800">{title}</div>
-      <p className="text-xs text-neutral-500">Compilation generates PoW for authenticity and spam prevention.</p>
+      <p className="text-xs text-neutral-500">Optimized for Avalanche's high-speed, low-cost network.</p>
     </div>
   )
 }

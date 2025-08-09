@@ -3,21 +3,21 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: '.ava - Exclusive Programming Language for Avalanche',
-  description: 'Write once, verify everywhere — with built-in Proof of Work.',
+  description: 'Write once, verify everywhere — with built-in Proof of Execution.',
   keywords: ['dApp', 'Avalanche', 'No-code', 'Smart contracts', 'Blockchain', 'Web3', 'DeFi'],
   authors: [{ name: '.ava Team' }],
   creator: '.ava',
   publisher: '.ava',
   openGraph: {
     title: '.ava - Exclusive Programming Language for Avalanche',
-    description: 'Write once, verify everywhere — with built-in Proof of Work.',
+    description: 'Write once, verify everywhere — with built-in Proof of Execution.',
     type: 'website',
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
     title: '.ava - Exclusive Programming Language for Avalanche',
-    description: 'Write once, verify everywhere — with built-in Proof of Work.',
+    description: 'Write once, verify everywhere — with built-in Proof of Execution.',
   },
   robots: {
     index: true,

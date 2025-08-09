@@ -1,7 +1,7 @@
 export const brand = {
   name: "ava",
-  tagline: "Verifiable Programming Language",
-  description: "Write programs in ava that generate Proof of Work, execute fully onchain with verification, and compile to Solidity, Cairo, and Rust.",
+  tagline: "Avalanche-Native Programming Language",
+  description: "Write programs in ava exclusively for Avalanche. Generate Proof of Execution during compilation, ensure authenticity, and deploy with verifiable trust on Avalanche's high-performance network.",
   colors: {
     // Avalanche-inspired warm, bright palette
     primaryFrom: "#e84142", // avalanche red

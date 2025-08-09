@@ -9,7 +9,7 @@ export default function Steps() {
     { title: "Write", desc: "Write your program in ava.", icon: Code },
     { title: "Compile + PoW", desc: "Compilation generates authenticity proof.", icon: Zap },
     { title: "Verify", desc: "Anyone can verify code integrity.", icon: Shield },
-    { title: "Deploy", desc: "Cross-chain to .sol, .cairo, .rs.", icon: FileCode2 },
+    { title: "Deploy", desc: "Launch on Avalanche mainnet/testnet.", icon: FileCode2 },
   ]
 
   return (
@@ -19,8 +19,8 @@ export default function Steps() {
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
             How it works
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">From code to trusted deployment in four steps</h2>
-          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">Compilation-time PoW ensures authenticity and prevents spam across all targets.</p>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">From code to Avalanche deployment in four steps</h2>
+          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">Compilation-time PoW ensures authenticity optimized for Avalanche's ecosystem.</p>
         </div>
         <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-4">
           {steps.map((s, i) => (

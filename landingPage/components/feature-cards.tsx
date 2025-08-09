@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Shield, FileCode2, CheckCircle } from "lucide-react"
+import { Zap, Shield, Gauge, CheckCircle } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
@@ -19,13 +19,13 @@ export default function FeatureCards() {
       icon: Shield,
     },
     {
-      title: "Cross-Chain Trust",
-      desc: "Verification works across .sol, .cairo, and .rs.",
-      icon: FileCode2,
+      title: "Avalanche Speed",
+      desc: "Optimized for Avalanche's sub-second finality.",
+      icon: Gauge,
     },
     {
-      title: "Code Integrity",
-      desc: "Prove code wasn't altered after compilation.",
+      title: "Network Native",
+      desc: "Built exclusively for Avalanche ecosystem.",
       icon: CheckCircle,
     },
   ]
@@ -62,10 +62,10 @@ export default function FeatureCards() {
             Built for verification
           </div>
           <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-            Built for authenticity and trust
+            Built exclusively for Avalanche
           </h2>
           <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
-            Compilation-time PoW ensures your code is authentic, spam-free, and verifiable anywhere.
+            Compilation-time PoW optimized for Avalanche's high-speed, low-cost network architecture.
           </p>
         </div>
         <motion.div
