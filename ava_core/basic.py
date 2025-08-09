@@ -18,6 +18,12 @@ from eth_account import Account
 import hashlib
 import ast
 import re
+try:
+  from ai import llm_convertor
+  _LLM_IMPORT_ERROR = None
+except Exception as _e:
+  llm_convertor = None
+  _LLM_IMPORT_ERROR = str(_e)
 
 #######################################
 # TRACE / SERIALIZATION HELPERS
@@ -2249,6 +2255,27 @@ class BuiltInFunction(BaseFunction):
         'Function: exit([code])',
         'Exit the REPL with optional status code.'
       ),
+      'code_convert': (
+        'Function: code_convert(path, lang, [api_key])',
+        'Convert a .ava (or text) file into another language and write it next to the source.\n'
+        'Args:\n'
+        '  path: String – path to the input file (e.g., "./program.ava").\n'
+        '  lang: String – target language: "solidity"|"rust" (aliases: "sol"|"rs").\n'
+        '  api_key: Optional String – Groq key to use for this conversion.\n'
+        'Returns: String – output file path (.sol for Solidity, .rs for Rust).'
+      ),
+      'code_convert_project': (
+        'Function: code_convert_project(path, lang, project_root, [api_key], [preset], [overwrite])',
+        'Generate a full, deploy-ready project from input code.\n'
+        'Args:\n'
+        '  path: String – path to input code file (.ava or text).\n'
+        '  lang: String – target language: "solidity"|"rust" (aliases: "sol"|"rs").\n'
+        '  project_root: String – directory to write the project into.\n'
+        '  api_key: Optional String – Groq key for this conversion.\n'
+        '  preset: Optional String – project preset (default by lang). For Solidity uses "solidity-hardhat"; for Rust "rust-cargo".\n'
+        '  overwrite: Optional Number – 1 to overwrite existing files, 0 otherwise.\n'
+        'Returns: String – JSON string with projectType, projectRoot, writtenFiles, nextSteps.'
+      ),
     }
 
     def _show_topic(topic: str):
@@ -2277,7 +2304,7 @@ class BuiltInFunction(BaseFunction):
     io_funcs = ['show','print_ret','input','input_int','clear','clr']
     list_funcs = ['add','pop','extend','len']
     type_funcs = ['is_num','is_str','is_list','is_fun']
-    sys_funcs = ['ava_exec','help','exit']
+    sys_funcs = ['ava_exec','help','exit','code_convert','code_convert_project']
     pow_funcs = ['pow_mine','pow_cfg','pow_max_nonce']
 
     content = []
@@ -2314,6 +2341,83 @@ class BuiltInFunction(BaseFunction):
   execute_exit.arg_names = ["code"]
   execute_exit.min_args = 0
   execute_exit.max_args = 1
+
+  def execute_code_convert(self, exec_ctx):
+    """
+    code_convert(path, lang, [api_key]) -> String
+
+    Convert a .ava (or text) file into another language and write the converted
+    code next to the source file. Returns the output file path.
+
+    - path: String – input file path
+    - lang: String – "solidity"|"rust" (aliases: "sol"|"rs")
+    - api_key: Optional String – Groq key; if provided, used for this conversion
+    """
+    if llm_convertor is None:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, f"LLM module unavailable: {_LLM_IMPORT_ERROR}", exec_ctx))
+
+    path_val = exec_ctx.symbol_table.get("path")
+    lang_val = exec_ctx.symbol_table.get("lang")
+    api_key_val = exec_ctx.symbol_table.get("api_key")
+
+    if not isinstance(path_val, String) or not isinstance(lang_val, String):
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, "Arguments must be: path(string), lang(string), [api_key(string)]", exec_ctx))
+
+    input_path = path_val.value
+    lang = lang_val.value
+    api_key = api_key_val.value if isinstance(api_key_val, String) else None
+
+    try:
+      out_path = llm_convertor.code_convert(input_path, lang, api_key=api_key)
+      return RTResult().success(String(out_path))
+    except Exception as e:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, str(e), exec_ctx))
+  execute_code_convert.arg_names = ["path", "lang", "api_key"]
+  execute_code_convert.min_args = 2
+  execute_code_convert.max_args = 3
+
+  def execute_code_convert_project(self, exec_ctx):
+    """
+    code_convert_project(path, lang, project_root, [api_key], [preset], [overwrite]) -> String(JSON)
+
+    Generate a full, deploy-ready project and return a JSON string describing
+    the output (projectType, projectRoot, writtenFiles, nextSteps).
+    """
+    if llm_convertor is None:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, f"LLM module unavailable: {_LLM_IMPORT_ERROR}", exec_ctx))
+
+    path_val = exec_ctx.symbol_table.get("path")
+    lang_val = exec_ctx.symbol_table.get("lang")
+    root_val = exec_ctx.symbol_table.get("project_root")
+    api_key_val = exec_ctx.symbol_table.get("api_key")
+    preset_val = exec_ctx.symbol_table.get("preset")
+    overwrite_val = exec_ctx.symbol_table.get("overwrite")
+
+    if not isinstance(path_val, String) or not isinstance(lang_val, String) or not isinstance(root_val, String):
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, "Arguments must be: path(string), lang(string), project_root(string), [api_key(string)], [preset(string)], [overwrite(number)]", exec_ctx))
+
+    input_path = path_val.value
+    lang = lang_val.value
+    project_root = root_val.value
+    api_key = api_key_val.value if isinstance(api_key_val, String) else None
+    preset = preset_val.value if isinstance(preset_val, String) else None
+    overwrite = bool(int(overwrite_val.value)) if isinstance(overwrite_val, Number) else False
+
+    try:
+      info = llm_convertor.code_convert_project(
+        input_path=input_path,
+        target_language=lang,
+        project_root=project_root,
+        api_key=api_key,
+        preset=preset,
+        overwrite=overwrite,
+      )
+      return RTResult().success(String(json.dumps(info)))
+    except Exception as e:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, str(e), exec_ctx))
+  execute_code_convert_project.arg_names = ["path", "lang", "project_root", "api_key", "preset", "overwrite"]
+  execute_code_convert_project.min_args = 3
+  execute_code_convert_project.max_args = 6
 
   def execute_run(self, exec_ctx):
     global W3, CONTRACT_ADDRESS, ABI_OF_CONTRACT, IS_WEB3, PRIVATE_KEY, PYDATA, PROVIDER, POW_ALWAYS, POW_BITS, CURRENT_TRACE
@@ -2464,6 +2568,8 @@ BuiltInFunction.pow_config     = BuiltInFunction("pow_config")
 BuiltInFunction.pow_set_max_nonce = BuiltInFunction("pow_set_max_nonce")
 BuiltInFunction.help          = BuiltInFunction("help")
 BuiltInFunction.exit          = BuiltInFunction("exit")
+BuiltInFunction.code_convert  = BuiltInFunction("code_convert")
+BuiltInFunction.code_convert_project = BuiltInFunction("code_convert_project")
 
 #######################################
 # CONTEXT
@@ -2828,6 +2934,8 @@ global_symbol_table.set("pow_cfg", BuiltInFunction.pow_config)
 global_symbol_table.set("pow_max_nonce", BuiltInFunction.pow_set_max_nonce)
 global_symbol_table.set("help", BuiltInFunction.help)
 global_symbol_table.set("exit", BuiltInFunction.exit)
+global_symbol_table.set("code_convert", BuiltInFunction.code_convert)
+global_symbol_table.set("code_convert_project", BuiltInFunction.code_convert_project)
 
 
 """

@@ -29,3 +29,21 @@ exit, convert, deploy\
 
 
 pow_cfg(1, 18)
+
+
+
+
+code_convert_project("file.ava", "solidity", "./out/sol_project")
+
+
+
+File-only conversion:
+code_convert("ava_core/file.ava", "solidity")
+code_convert("ava_core/file.ava", "rust", "gsk_your_api_key")
+One-click project:
+Solidity Hardhat project:
+code_convert_project("ava_core/file.ava", "solidity", "./out/sol_project")
+Rust Cargo project:
+code_convert_project("ava_core/file.ava", "rust", "./out/rs_project")
+With key, preset, overwrite:
+code_convert_project("ava_core/file.ava", "solidity", "./out/sol_project", "gsk_...", "solidity-hardhat", 1)
