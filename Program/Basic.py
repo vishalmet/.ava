@@ -1797,57 +1797,6 @@ class BuiltInFunction(BaseFunction):
     return RTResult().success(Number.null)
   execute_append.arg_names = ["list", "value"]
 
-  def execute_pop(self, exec_ctx):
-    list_ = exec_ctx.symbol_table.get("list")
-    index = exec_ctx.symbol_table.get("index")
-
-    if not isinstance(list_, List):
-      return RTResult().failure(RTError(
-        self.pos_start, self.pos_end,
-        "First argument must be list",
-        exec_ctx
-      ))
-
-    if not isinstance(index, Number):
-      return RTResult().failure(RTError(
-        self.pos_start, self.pos_end,
-        "Second argument must be number",
-        exec_ctx
-      ))
-
-    try:
-      element = list_.elements.pop(index.value)
-    except:
-      return RTResult().failure(RTError(
-        self.pos_start, self.pos_end,
-        'Element at this index could not be removed from list because index is out of bounds',
-        exec_ctx
-      ))
-    return RTResult().success(element)
-  execute_pop.arg_names = ["list", "index"]
-
-  def execute_extend(self, exec_ctx):
-    listA = exec_ctx.symbol_table.get("listA")
-    listB = exec_ctx.symbol_table.get("listB")
-
-    if not isinstance(listA, List):
-      return RTResult().failure(RTError(
-        self.pos_start, self.pos_end,
-        "First argument must be list",
-        exec_ctx
-      ))
-
-    if not isinstance(listB, List):
-      return RTResult().failure(RTError(
-        self.pos_start, self.pos_end,
-        "Second argument must be list",
-        exec_ctx
-      ))
-
-    listA.elements.extend(listB.elements)
-    return RTResult().success(Number.null)
-  execute_extend.arg_names = ["listA", "listB"]
-
   def execute_len(self, exec_ctx):
     list_ = exec_ctx.symbol_table.get("list")
 
@@ -1874,3 +1823,74 @@ class BuiltInFunction(BaseFunction):
       ))
 
     fn = fn.value
+
+    try:
+      with open(fn, "r") as f:
+        script = f.read()
+      firstHash = False
+      for i in script.split('\n'):
+        i = i.strip()
+        if '#' in i and i.startswith('#'):
+          firstHash=True
+          repl =i.replace("#", "").strip()
+          try:
+            PYDATA = json.loads(i.replace("#", ""))
+            if PYDATA.get('provider','') and PYDATA.get('ack',''): # Here the program verify the given json data
+              PROVIDER = PYDATA["provider"]
+              W3 =  Web3(Web3.HTTPProvider(PROVIDER))
+              IS_WEB3 = True
+              if PYDATA.get('ack','') and W3.is_connected():
+                do_line()
+                print("Provider Connected...")
+                do_line()
+                word_line("Output details")
+              elif PYDATA.get('ack',''):
+                word_line("Warning: Provider is not Connected")
+                print("Check the data : ", str(PYDATA))
+                do_line()
+            elif PYDATA.get('ack',''):
+              word_line("Warning: Provider is not Connected")
+              print("Check the data : ",str(PYDATA))
+              do_line()
+            if firstHash:
+              break
+          except Exception as e:
+            print('Key Initializing error :', e)
+            if firstHash:
+              break
+
+    except Exception as e:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        f"Failed to load script \"{fn}\"\n" + str(e),
+        exec_ctx
+      ))
+
+    _, error = run(fn, script)
+    
+    if error:
+      return RTResult().failure(RTError(
+        self.pos_start, self.pos_end,
+        f"Failed to finish executing script \"{fn}\"\n" +
+        error.as_string(),
+        exec_ctx
+      ))
+
+    return RTResult().success(Number.null)
+  execute_run.arg_names = ["fn"]
+
+BuiltInFunction.print       = BuiltInFunction("print")
+BuiltInFunction.pyexe       = BuiltInFunction("pyexe")
+BuiltInFunction.print_ret   = BuiltInFunction("print_ret")
+BuiltInFunction.input       = BuiltInFunction("input")
+BuiltInFunction.input_int   = BuiltInFunction("input_int")
+BuiltInFunction.clear       = BuiltInFunction("clear")
+BuiltInFunction.is_number   = BuiltInFunction("is_number")
+BuiltInFunction.is_string   = BuiltInFunction("is_string")
+BuiltInFunction.is_list     = BuiltInFunction("is_list")
+BuiltInFunction.is_function = BuiltInFunction("is_function")
+BuiltInFunction.append      = BuiltInFunction("append")
+BuiltInFunction.pop         = BuiltInFunction("pop")
+BuiltInFunction.extend      = BuiltInFunction("extend")
+BuiltInFunction.len					= BuiltInFunction("len")
+BuiltInFunction.run					= BuiltInFunction("run")
