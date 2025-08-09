@@ -130,19 +130,40 @@ def _strip_pow_from_stdout(text: str) -> str:
   except Exception:
     return text
 
+def _usage_text() -> str:
+  return (
+    "Commands:\n"
+    "  help()               Show language keywords & built-ins\n"
+    "  clear | clr          Clear screen\n"
+    "  exit                 Quit the REPL\n\n"
+    "Flags (per session):\n"
+    "  --no-json            Hide JSON panels (toggle back with --json)\n"
+    "  --json               Show JSON panels again\n"
+    "  --no-spinner         Disable loading animation for this session\n\n"
+    "Environment:\n"
+    "  AVA_NO_SPINNER=1     Disable loading animation globally\n"
+  )
+
 def welcome():
   info = (
     f"Version {APP_VERSION}\n"
     f"Type help() for keywords & built-ins\n"
-    f"Use --no-json to hide JSON (toggle back with --json)"
+    f"Use --no-json to hide JSON (toggle back with --json)\n"
+    f"Use --no-spinner (or AVA_NO_SPINNER=1) to disable loading animation"
   )
   print_panel(f"{APP_NAME.upper()} — {APP_TAGLINE}", info, color=COLOR['magenta'])
+  print_panel('Usage', _usage_text(), color=COLOR['blue'])
 
 
 ARGS = sys.argv[1:]
 SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
 # Allow disabling spinner globally via CLI or env
 NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
+
+# Early --help support for shell flags
+if '--help' in ARGS or '-h' in ARGS:
+  print_panel('Usage', _usage_text(), color=COLOR['blue'])
+  sys.exit(0)
 
 
 welcome()

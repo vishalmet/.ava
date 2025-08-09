@@ -5,7 +5,7 @@ import io
 import zipfile
 from typing import Any, Dict
 
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, Response, send_file, redirect
 from flask_cors import CORS
 
 # Ensure project root on sys.path so we can import from ava_core
@@ -22,6 +22,281 @@ from llm.llm_core import (
 
 app = Flask(__name__)
 CORS(app)
+
+
+# Simple API docs (served at '/' and '/docs')
+_DOCS = {
+    "name": "Ava Convert API",
+    "version": "1.0",
+    "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly).",
+    "endpoints": [
+        {
+            "method": "GET",
+            "path": "/health",
+            "desc": "Health check",
+            "response": {"status": "ok"}
+        },
+        {
+            "method": "POST",
+            "path": "/convert-code",
+            "desc": "Convert source code string into a target language (e.g., solidity, rust)",
+            "body": {
+                "source_code": "string (required)",
+                "target_language": "string (required: 'solidity'|'rust')",
+                "api_key": "string (optional: overrides default LLM key)",
+                "system": "string (optional: system prompt override)"
+            },
+            "response": {
+                "language": "string",
+                "code": "string"
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/convert-project",
+            "desc": "Generate a project manifest (files in-memory) for the target language",
+            "body": {
+                "source_code": "string (required)",
+                "target_language": "string (required)",
+                "api_key": "string (optional)",
+                "preset": "string (optional preset e.g. 'hardhat', 'cargo')"
+            },
+            "response": {
+                "projectType": "string",
+                "files": "[{path: string, content: string}]",
+                "nextSteps": "string[]"
+            }
+        },
+        {
+            "method": "POST",
+            "path": "/convert-project-zip",
+            "desc": "Return a ZIP of the generated project (built entirely in-memory)",
+            "body": {
+                "source_code": "string (required)",
+                "target_language": "string (required)",
+                "api_key": "string (optional)",
+                "preset": "string (optional)"
+            },
+            "response": "application/zip attachment"
+        }
+    ],
+    "notes": [
+        "The API never writes files to disk; responses contain code or project structures.",
+        "Use the Ava REPL built-ins in `ava_core/Basic.py` to write locally if needed: code_convert(), code_convert_project()."
+    ]
+}
+
+
+@app.get('/')
+def root_docs() -> Response:
+    # Redirect to Swagger UI for a familiar FastAPI-like experience
+    return redirect('/docs', code=302)
+
+
+def _build_openapi() -> Dict[str, Any]:
+    return {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "Ava Convert API",
+            "version": "1.0.0",
+            "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly).",
+        },
+        "servers": [
+            {"url": "/"}
+        ],
+        "paths": {
+            "/health": {
+                "get": {
+                    "summary": "Health check",
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "application/json": {
+                                    "schema": {"type": "object", "properties": {"status": {"type": "string"}}},
+                                    "example": {"status": "ok"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/convert-code": {
+                "post": {
+                    "summary": "Convert source code string into a target language",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source_code": {"type": "string"},
+                                        "target_language": {"type": "string", "enum": ["solidity", "rust"]},
+                                        "api_key": {"type": "string"},
+                                        "system": {"type": "string"}
+                                    },
+                                    "required": ["source_code", "target_language"]
+                                },
+                                "example": {
+                                    "source_code": "<ava code>",
+                                    "target_language": "solidity",
+                                    "api_key": "sk-..."
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Converted code",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "language": {"type": "string"},
+                                            "code": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {"description": "Invalid payload"},
+                        "500": {"description": "Conversion failed"}
+                    }
+                }
+            },
+            "/convert-project": {
+                "post": {
+                    "summary": "Generate a project manifest for the target language",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source_code": {"type": "string"},
+                                        "target_language": {"type": "string", "enum": ["solidity", "rust"]},
+                                        "api_key": {"type": "string"},
+                                        "preset": {"type": "string"}
+                                    },
+                                    "required": ["source_code", "target_language"]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Project manifest",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "projectType": {"type": "string"},
+                                            "files": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}}},
+                                            "nextSteps": {"type": "array", "items": {"type": "string"}}
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {"description": "Invalid payload"},
+                        "500": {"description": "Project generation failed"}
+                    }
+                }
+            },
+            "/convert-project-zip": {
+                "post": {
+                    "summary": "Return a ZIP of the generated project (in-memory)",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "source_code": {"type": "string"},
+                                        "target_language": {"type": "string", "enum": ["solidity", "rust"]},
+                                        "api_key": {"type": "string"},
+                                        "preset": {"type": "string"}
+                                    },
+                                    "required": ["source_code", "target_language"]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "ZIP attachment",
+                            "content": {"application/zip": {}}
+                        },
+                        "400": {"description": "Invalid payload"},
+                        "500": {"description": "ZIP generation failed"}
+                    }
+                }
+            }
+        }
+    }
+
+
+_OPENAPI: Dict[str, Any] = _build_openapi()
+
+
+@app.get('/openapi.json')
+def openapi_spec() -> Response:
+    return jsonify(_OPENAPI), 200
+
+
+_SWAGGER_HTML = """
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Ava Convert API — Swagger UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  </head>
+  <body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: '/openapi.json',
+        dom_id: '#swagger-ui',
+        presets: [SwaggerUIBundle.presets.apis],
+        layout: 'BaseLayout'
+      });
+    </script>
+  </body>
+  </html>
+"""
+
+
+@app.get('/docs')
+def swagger_ui() -> Response:
+    return Response(_SWAGGER_HTML, mimetype='text/html')
+
+
+_REDOC_HTML = """
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Ava Convert API — ReDoc</title>
+    <style> body { margin: 0; padding: 0; } </style>
+  </head>
+  <body>
+    <redoc spec-url='/openapi.json'></redoc>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  </body>
+  </html>
+"""
+
+
+@app.get('/redoc')
+def redoc_ui() -> Response:
+    return Response(_REDOC_HTML, mimetype='text/html')
 
 
 def _json_error(msg: str, code: int = 400) -> Response:
