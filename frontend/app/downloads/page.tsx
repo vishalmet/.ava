@@ -8,8 +8,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowLeft, Download, Monitor, Apple, Smartphone, TrendingUp, Users, Clock, BarChart3 } from "lucide-react"
+import { ArrowLeft, Download, Monitor, Apple, Smartphone, TrendingUp, Users, Clock, BarChart3, ChevronDown } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { brand } from "@/lib/brand"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
+import { Line } from 'react-chartjs-2'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 interface DownloadStats {
   totalDownloads: number
@@ -28,6 +52,7 @@ interface DownloadStats {
   downloadsOverTime: Array<{
     _id: string
     count: number
+    platforms?: { [key: string]: number }
   }>
 }
 
@@ -36,14 +61,22 @@ export default function DownloadsPage() {
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [timePeriod, setTimePeriod] = useState<'24h' | '7d' | '30d'>('7d')
 
   useEffect(() => {
     fetchStats()
   }, [])
 
-  const fetchStats = async () => {
+  useEffect(() => {
+    if (stats) {
+      setLoading(true)
+      fetchStats(timePeriod)
+    }
+  }, [timePeriod])
+
+  const fetchStats = async (period: string = timePeriod) => {
     try {
-      const response = await fetch('/api/download')
+      const response = await fetch(`/api/download?period=${period}`)
       if (!response.ok) {
         throw new Error('Failed to fetch statistics')
       }
@@ -103,6 +136,167 @@ export default function DownloadsPage() {
       default: return Download
     }
   }
+
+  const getChartData = () => {
+    if (!stats?.downloadsOverTime || !stats?.downloadsByPlatform) {
+      return null
+    }
+
+    // Use actual API data
+    const timeData = stats.downloadsOverTime
+    
+    console.log('API Data:', {
+      timePeriod,
+      timeDataLength: timeData.length,
+      timeData: timeData,
+      platformData: stats.downloadsByPlatform,
+      totalDownloads: stats.totalDownloads
+    })
+    
+    if (timeData.length === 0) {
+      return null
+    }
+
+    // Create labels from actual API data
+    const labels = timeData.map(item => {
+      const date = new Date(item._id)
+      
+      if (timePeriod === '24h') {
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', hour12: true })
+      } else if (timePeriod === '7d') {
+        return date.toLocaleDateString('en-US', { weekday: 'short' })
+      } else {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }
+    })
+
+    const platformColors = {
+      'Windows': { line: '#ff6b35', bg: 'rgba(255, 107, 53, 0.1)' },
+      'macOS': { line: '#e91e63', bg: 'rgba(233, 30, 99, 0.1)' },
+      'Linux': { line: '#2196f3', bg: 'rgba(33, 150, 243, 0.1)' }
+    }
+
+    // Create datasets using platform-specific data from API
+    const datasets = stats.downloadsByPlatform.map((platform) => {
+      // Extract platform-specific counts from the time series data
+      const platformData = timeData.map((item) => {
+        // Use the actual platform count from the API data
+        return item.platforms?.[platform._id] || 0
+      })
+
+      const colors = platformColors[platform._id as keyof typeof platformColors] || 
+                     { line: '#6b7280', bg: 'rgba(107, 114, 128, 0.1)' }
+
+      return {
+        label: platform._id,
+        data: platformData, // ONLY actual counts from API
+        borderColor: colors.line,
+        backgroundColor: colors.bg,
+        borderWidth: 4,
+        pointBackgroundColor: colors.line,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 3,
+        pointRadius: 6,
+        pointHoverRadius: 8,
+        fill: false,
+        tension: 0.3,
+      }
+    })
+
+    console.log('Chart data being used:', {
+      labels,
+      platformDatasets: datasets.map(d => ({ label: d.label, data: d.data })),
+      rawTimeData: timeData
+    })
+
+    return { labels, datasets }
+  }
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false, // We'll use our custom legend
+      },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#ffffff',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderWidth: 1,
+        cornerRadius: 6,
+        displayColors: true,
+        padding: 12,
+        callbacks: {
+          title: (context: any) => {
+            return `${context[0].label}`
+          },
+          label: (context: any) => {
+            return `${context.dataset.label}: ${context.parsed.y} downloads`
+          }
+        }
+      },
+    },
+    scales: {
+      x: {
+        type: 'category' as const,
+        grid: {
+          color: 'rgba(200, 200, 200, 0.3)',
+          drawBorder: true,
+          lineWidth: 1,
+        },
+        ticks: {
+          color: '#374151',
+          font: {
+            size: 11,
+            weight: 500,
+          },
+          padding: 8,
+        },
+      },
+      y: {
+        type: 'linear' as const,
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(200, 200, 200, 0.3)',
+          drawBorder: true,
+          lineWidth: 1,
+        },
+        ticks: {
+          color: '#374151',
+          font: {
+            size: 11,
+            weight: 500,
+          },
+          padding: 8,
+          stepSize: 1, // Force whole number steps
+          callback: function(value: any) {
+            return Number.isInteger(value) ? value : null // Only show whole numbers
+          }
+        },
+        min: 0,
+        // Let Chart.js auto-scale based on actual data
+      },
+    },
+    interaction: {
+      mode: 'nearest' as const,
+      axis: 'x' as const,
+      intersect: false,
+    },
+    elements: {
+      point: {
+        hoverBackgroundColor: '#ffffff',
+        hoverBorderWidth: 4,
+      },
+      line: {
+        borderJoinStyle: 'round' as const,
+        borderCapStyle: 'round' as const,
+      },
+    },
+  } as const
 
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString)
@@ -238,18 +432,23 @@ export default function DownloadsPage() {
                   View more
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-rose-500" />
-                    Download Analytics
-                  </DialogTitle>
-                  <DialogDescription>
-                    Detailed download statistics and activity over time
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="space-y-6">
+              <DialogContent className="w-[80vw] h-[80vh] max-w-[80vw] max-h-[80vh] overflow-y-auto bg-gradient-to-br from-white via-neutral-50/50 to-white dark:from-neutral-900 dark:via-neutral-800/50 dark:to-neutral-900" style={{ maxWidth: '80vw', width: '80vw', height: '80vh', maxHeight: '80vh' }}>
+                <div className="p-6">
+                  <DialogHeader className="pb-6 border-b border-neutral-200 dark:border-neutral-700">
+                    <DialogTitle className="flex items-center gap-3 text-xl">
+                      <div className="p-2 rounded-lg bg-gradient-to-r from-rose-500 to-pink-500 shadow-lg">
+                        <TrendingUp className="h-5 w-5 text-white" />
+                      </div>
+                      <span className="bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent font-bold">
+                        Download Analytics Dashboard
+                      </span>
+                    </DialogTitle>
+                    <DialogDescription className="text-base text-neutral-600 dark:text-neutral-400 ml-12">
+                      Real-time insights and trends across all platforms
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-6 pt-6">
                   {/* Stats Grid */}
                   <div className="grid gap-4 md:grid-cols-3">
                     <Card className="border-neutral-200 dark:border-neutral-700">
@@ -336,54 +535,74 @@ export default function DownloadsPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Download Graph */}
-                  <Card className="border-neutral-200 dark:border-neutral-700">
-                    <CardHeader>
-                      <CardTitle className="text-neutral-900 dark:text-white flex items-center gap-2">
-                        <TrendingUp className="h-5 w-5 text-rose-500" />
-                        Download Activity
-                      </CardTitle>
-                      <CardDescription className="text-neutral-600 dark:text-neutral-400">
-                        Daily downloads over the last 30 days
-                      </CardDescription>
+                  {/* Chart.js Line Graph */}
+                  <Card className="border-neutral-200 dark:border-neutral-700 bg-gradient-to-br from-white to-neutral-50/50 dark:from-neutral-900 dark:to-neutral-800/50">
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-neutral-900 dark:text-white flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-rose-500" />
+                            Platform Download Trends
+                          </CardTitle>
+                          <CardDescription className="text-neutral-600 dark:text-neutral-400">
+                            Download activity by platform over time
+                          </CardDescription>
+                        </div>
+                        <Select value={timePeriod} onValueChange={(value: '24h' | '7d' | '30d') => setTimePeriod(value)}>
+                          <SelectTrigger className="w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {/* <SelectItem value="24h">Last 24 hours</SelectItem> */}
+                            <SelectItem value="7d">Last 7 days</SelectItem>
+                            <SelectItem value="30d">Last 30 days</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </CardHeader>
-                    <CardContent>
-                      {stats?.downloadsOverTime && stats.downloadsOverTime.length > 0 ? (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {stats.downloadsOverTime.slice(-14).map((day) => {
-                            const maxCount = Math.max(...stats.downloadsOverTime.map(d => d.count))
-                            const percentage = maxCount > 0 ? (day.count / maxCount) * 100 : 0
-                            
-                            return (
-                              <div key={day._id} className="flex items-center justify-between group hover:bg-neutral-50 dark:hover:bg-neutral-700/50 p-2 rounded transition-colors">
-                                <span className="text-sm text-neutral-600 dark:text-neutral-400 font-mono">
-                                  {new Date(day._id).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </span>
-                                <div className="flex items-center gap-3 flex-1 justify-end">
-                                  <div className="relative w-32 h-3 bg-neutral-100 dark:bg-neutral-700 rounded-full overflow-hidden">
-                                    <motion.div 
-                                      className="h-full bg-gradient-to-r from-rose-400 to-rose-600 rounded-full"
-                                      initial={{ width: 0 }}
-                                      animate={{ width: `${Math.max(percentage, 2)}%` }}
-                                      transition={{ duration: 0.8, delay: 0.1 }}
-                                    />
-                                  </div>
-                                  <span className="text-sm font-medium text-neutral-900 dark:text-white w-8 text-right">
-                                    {day.count}
+                    <CardContent className="pt-2">
+                      {getChartData() ? (
+                        <div className="relative">
+                          {/* Custom Legend */}
+                          <div className="flex justify-center gap-8 mb-8">
+                            {stats?.downloadsByPlatform.map((platform, index) => {
+                              const IconComponent = getPlatformIcon(platform._id)
+                              const colors = [
+                                { stroke: '#ff6b35', bg: 'bg-orange-500' }, // Windows - Orange
+                                { stroke: '#e91e63', bg: 'bg-pink-600' },   // macOS - Pink
+                                { stroke: '#2196f3', bg: 'bg-blue-500' }    // Linux - Blue
+                              ]
+                              
+                              return (
+                                <div key={platform._id} className="flex items-center gap-3">
+                                  <div className="w-4 h-1 rounded-full shadow-sm" style={{ backgroundColor: colors[index]?.stroke || '#6b7280' }} />
+                                  <IconComponent className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
+                                  <span className="text-base font-medium text-neutral-700 dark:text-neutral-300">
+                                    {platform._id}
                                   </span>
                                 </div>
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                          </div>
+
+                          {/* Chart.js Line Chart */}
+                          <div className="relative h-96 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-300 dark:border-neutral-700 p-6 shadow-sm">
+                            <Line data={getChartData()!} options={chartOptions} />
+                          </div>
                         </div>
                       ) : (
-                        <div className="text-center py-8 text-neutral-500 dark:text-neutral-400">
-                          No download data available yet
+                        <div className="h-96 flex items-center justify-center text-neutral-500 dark:text-neutral-400 bg-gradient-to-b from-neutral-50/30 to-white dark:from-neutral-800/30 dark:to-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-700">
+                          <div className="text-center">
+                            <TrendingUp className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                            <p className="text-lg font-medium">No trend data available</p>
+                            <p className="text-sm opacity-70">Download data will appear here once available</p>
+                          </div>
                         </div>
                       )}
                     </CardContent>
                   </Card>
 
+                  </div>
                 </div>
               </DialogContent>
             </Dialog>
