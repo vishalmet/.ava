@@ -30,8 +30,29 @@ export default function FeatureCards() {
     },
   ]
 
-  const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.07 } } }
-  const item = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0 } }
+  const container = { 
+    hidden: { opacity: 0 }, 
+    show: { 
+      opacity: 1, 
+      transition: { 
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      } 
+    } 
+  }
+  const item = { 
+    hidden: { opacity: 0, y: 20, scale: 0.95 }, 
+    show: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      transition: {
+        type: "spring",
+        stiffness: 100,
+        damping: 15
+      }
+    } 
+  }
 
   return (
     <section id="features" className="border-t bg-gradient-to-b from-rose-50 via-white to-orange-50">
@@ -55,8 +76,17 @@ export default function FeatureCards() {
           className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4"
         >
           {features.map((f) => (
-            <motion.div key={f.title} variants={item}>
-              <Card className="relative overflow-hidden border-orange-100 bg-white p-5 shadow-sm transition-transform hover:-translate-y-1">
+            <motion.div 
+              key={f.title} 
+              variants={item}
+              whileHover={{ 
+                y: -8, 
+                scale: 1.02,
+                transition: { duration: 0.2, ease: "easeOut" }
+              }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <Card className="relative overflow-hidden border-orange-100 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer h-full">
                 <div
                   className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-20 blur-2xl"
                   style={{
