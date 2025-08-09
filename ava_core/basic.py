@@ -2625,7 +2625,7 @@ class BuiltInFunction(BaseFunction):
       ))
 
     result_obj, error = run(fn, script)
-    # Attach header JSON to trace for shell visibility toggles
+    # Attach header JSON to trace for shell visibility toggles and propagate PoW info from inner run
     try:
       if isinstance(result_obj, dict):
         result_obj.setdefault('trace', {}).setdefault('execution', {})['header'] = header_json
@@ -2633,6 +2633,12 @@ class BuiltInFunction(BaseFunction):
       if CURRENT_TRACE is not None:
         CURRENT_TRACE.execution.setdefault('header', {})
         CURRENT_TRACE.execution['header'].update(header_json)
+        # Propagate PoW from inner run so shell can render the PoW panel at top-level
+        inner_pow = None
+        if isinstance(result_obj, dict):
+          inner_pow = result_obj.get('pow') or result_obj.get('trace', {}).get('execution', {}).get('pow')
+        if inner_pow:
+          CURRENT_TRACE.execution['pow'] = inner_pow
       # Echo inner script's stdout to current (outer) captured stdout so terminal shows file's show() output
       inner_stdout = ""
       if isinstance(result_obj, dict):
