@@ -10,11 +10,12 @@ import Hero from "@/components/hero"
 import FeatureCards from "@/components/feature-cards"
 import Steps from "@/components/steps"
 import ConverterCta from "@/components/converter-cta"
-import AvalancheCta from "@/components/avalanche-cta"
+import ExplorerCta from "@/components/explorer-cta"
 import Faq from "@/components/faq"
 import ScrollToTop from "@/components/scroll-to-top"
-
 import { brand } from "@/lib/brand"
+import AVA from "@/public/icon.png"
+import Image from "next/image"
 
 export default function Page() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -46,14 +47,7 @@ export default function Page() {
           >
             <Link href="#" className="flex items-center gap-2 group">
               <div className="relative">
-                <motion.div
-                  className="h-8 w-8 rounded-md shadow-sm"
-                  style={{
-                    backgroundImage: `linear-gradient(135deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-                  }}
-                  whileHover={{ scale: 1.05, rotate: 5 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                />
+                <Image src={AVA} alt="ava" className="h-10 w-auto rounded-md hover:rotate-12 transition-all duration-300" />
                 <motion.div
                   initial={{ scale: 0, rotate: -180 }}
                   animate={{ scale: 1, rotate: 0 }}
@@ -62,8 +56,6 @@ export default function Page() {
                   <Sparkles className="absolute -right-2 -top-2 h-4 w-4 text-rose-500" aria-hidden="true" />
                 </motion.div>
               </div>
-              <span className="font-semibold text-lg group-hover:text-rose-600 transition-colors">.ava</span>
-              <span className="sr-only">ava Home</span>
             </Link>
           </motion.div>
           
@@ -225,6 +217,7 @@ export default function Page() {
         <FeatureCards />
         <Steps />
         <ConverterCta />
+        <ExplorerCta />
         {/* <AvalancheCta /> */}
         <Faq />
       </main>

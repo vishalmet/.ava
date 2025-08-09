@@ -10,16 +10,30 @@ export const metadata: Metadata = {
   authors: [{ name: '.ava Team' }],
   creator: '.ava',
   publisher: '.ava',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
   openGraph: {
     title: '.ava - Exclusive Programming Language for Avalanche',
     description: 'Write once, verify everywhere — with built-in Proof of Execution.',
     type: 'website',
     locale: 'en_US',
+    images: [
+      {
+        url: '/icon.png',
+        width: 512,
+        height: 512,
+        alt: '.ava Logo',
+      },
+    ],
   },
   twitter: {
-    card: 'summary_large_image',
+    card: 'summary',
     title: '.ava - Exclusive Programming Language for Avalanche',
     description: 'Write once, verify everywhere — with built-in Proof of Execution.',
+    images: ['/icon.png'],
   },
   robots: {
     index: true,
