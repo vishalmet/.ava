@@ -47,3 +47,18 @@ Rust Cargo project:
 code_convert_project("ava_core/file.ava", "rust", "./out/rs_project")
 With key, preset, overwrite:
 code_convert_project("ava_core/file.ava", "solidity", "./out/sol_project", "gsk_...", "solidity-hardhat", 1)
+
+
+
+
+
+-----------------------------------------------------------------------------------------------------
+
+Endpoints
+POST /convert-code
+Body: { source_code: string, target_language: "solidity"|"rust", api_key?: string, system?: string }
+Returns: { language, code }
+POST /convert-project
+Body: { source_code: string, target_language: "solidity"|"rust", api_key?: string, preset?: string }
+Returns: { projectType, files: [{ path, content }], nextSteps }
+No files are written; manifest is normalized and returned.
