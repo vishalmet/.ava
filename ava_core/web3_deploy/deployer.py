@@ -32,8 +32,10 @@ def _ensure_solc_for_source(source_code: str) -> str:
 
     # install_solc_pragma will parse `pragma solidity` and install a matching version
     version = install_solc_pragma(source_code)
-    set_solc_version(version)
-    return version
+    # Normalize to plain string for downstream JSON serialization
+    version_str = str(version)
+    set_solc_version(version_str)
+    return version_str
 
 
 def _build_standard_input(source_filename: str, source_code: str) -> Dict[str, Any]:

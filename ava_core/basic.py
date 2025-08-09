@@ -24,6 +24,12 @@ try:
 except Exception as _e:
   llm_convertor = None
   _LLM_IMPORT_ERROR = str(_e)
+try:
+  from web3_deploy.deployer import deploy_contract_from_source
+  _DEPLOY_IMPORT_ERROR = None
+except Exception as _e:
+  deploy_contract_from_source = None
+  _DEPLOY_IMPORT_ERROR = str(_e)
 
 #######################################
 # TRACE / SERIALIZATION HELPERS
@@ -143,6 +149,8 @@ ABI_OF_CONTRACT = os.path.join(CURRENT_PATH, 'Solidity','new_contract_abi.json')
 PRIVATE_KEY = ""
 IS_WEB3 = False
 CURRENT_TRACE = None
+# Default EVM RPC for deployments (optional override)
+DEFAULT_EVM_RPC = "https://eth-sepolia.public.blastapi.io"
 #-------------- PoW Auto ---------------
 POW_ALWAYS = False
 POW_BITS = 0
@@ -2276,6 +2284,19 @@ class BuiltInFunction(BaseFunction):
         '  overwrite: Optional Number – 1 to overwrite existing files, 0 otherwise.\n'
         'Returns: String – JSON string with projectType, projectRoot, writtenFiles, nextSteps.'
       ),
+      'deploy': (
+        'Function: deploy(path, private_key, api_key, [rpc_url], [contract_name], [constructor_args])',
+        'Compile & deploy a Solidity contract from an .ava source file.\n'
+        'Steps: convert Ava -> Solidity using LLM, then compile & deploy.\n'
+        'Args:\n'
+        '  path: String – input .ava file path.\n'
+        '  private_key: String – hex private key of deployer (0x or raw).\n'
+        '  api_key: String – Groq API key used for conversion.\n'
+        '  rpc_url: Optional String – EVM RPC endpoint (defaults to a public Sepolia RPC).\n'
+        '  contract_name: Optional String – specific contract to deploy (if multiple).\n'
+        '  constructor_args: Optional List – args for constructor (JSON-like).\n'
+        'Returns: JSON string with address, abi, txHash, contractName, chainId.'
+      ),
     }
 
     def _show_topic(topic: str):
@@ -2304,7 +2325,7 @@ class BuiltInFunction(BaseFunction):
     io_funcs = ['show','print_ret','input','input_int','clear','clr']
     list_funcs = ['add','pop','extend','len']
     type_funcs = ['is_num','is_str','is_list','is_fun']
-    sys_funcs = ['ava_exec','help','exit','code_convert','code_convert_project']
+    sys_funcs = ['ava_exec','help','exit','code_convert','code_convert_project','deploy']
     pow_funcs = ['pow_mine','pow_cfg','pow_max_nonce']
 
     content = []
@@ -2366,6 +2387,11 @@ class BuiltInFunction(BaseFunction):
     input_path = path_val.value
     lang = lang_val.value
     api_key = api_key_val.value if isinstance(api_key_val, String) else None
+    if not api_key:
+      # Fallback to environment if not provided
+      api_key = os.getenv('GROQ_API_KEY')
+    if not api_key:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, "Missing api_key: pass as sixth argument or set GROQ_API_KEY env var", exec_ctx))
 
     try:
       out_path = llm_convertor.code_convert(input_path, lang, api_key=api_key)
@@ -2375,6 +2401,85 @@ class BuiltInFunction(BaseFunction):
   execute_code_convert.arg_names = ["path", "lang", "api_key"]
   execute_code_convert.min_args = 2
   execute_code_convert.max_args = 3
+
+  def execute_deploy(self, exec_ctx):
+    """
+    deploy(path, private_key, api_key, [rpc_url], [contract_name], [constructor_args]) -> String(JSON)
+
+    Convert Ava source to Solidity via LLM, then compile & deploy to EVM.
+    Returns JSON string of deployment info.
+    """
+    if llm_convertor is None:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, f"LLM module unavailable: {_LLM_IMPORT_ERROR}", exec_ctx))
+    if deploy_contract_from_source is None:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, f"Deploy module unavailable: {_DEPLOY_IMPORT_ERROR}", exec_ctx))
+
+    # Positional order: path, private_key, api_key, [rpc_url], [contract_name], [constructor_args]
+    path_val = exec_ctx.symbol_table.get("path")
+    pk_val = exec_ctx.symbol_table.get("private_key")
+    api_key_val = exec_ctx.symbol_table.get("api_key")
+    rpc_val = exec_ctx.symbol_table.get("rpc_url")
+    name_val = exec_ctx.symbol_table.get("contract_name")
+    ctor_val = exec_ctx.symbol_table.get("constructor_args")
+
+    if not isinstance(path_val, String) or not isinstance(pk_val, String) or not isinstance(api_key_val, String):
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, "Arguments must be: path(string), private_key(string), api_key(string), [rpc_url(string)], [contract_name(string)], [constructor_args(list)]", exec_ctx))
+
+    input_path = path_val.value
+    rpc_url = rpc_val.value if isinstance(rpc_val, String) else DEFAULT_EVM_RPC
+    private_key = pk_val.value
+    contract_name = name_val.value if isinstance(name_val, String) else None
+    # Constructor args can be a List Value or omitted
+    ctor_args_py = []
+    if isinstance(ctor_val, List):
+      # Convert Ava List of Values -> plain Python types
+      ctor_args_py = [value_to_python(e) for e in ctor_val.elements]
+    api_key = api_key_val.value
+
+    # Read .ava and convert to Solidity string
+    try:
+      if not os.path.isfile(input_path):
+        return RTResult().failure(RTError(self.pos_start, self.pos_end, f"Input file not found: {input_path}", exec_ctx))
+      with open(input_path, 'r', encoding='utf-8') as fh:
+        ava_src = fh.read()
+      solidity_src = llm_convertor.convert_code_to_language(ava_src, "solidity", api_key=api_key)
+      # Basic sanity for pragma; add default if missing
+      if "pragma solidity" not in solidity_src:
+        solidity_src = "pragma solidity ^0.8.20;\n\n" + solidity_src
+        
+      print(solidity_src)
+      # If the LLM produced a snippet (no contract/library/interface), wrap it in a minimal contract
+      low = solidity_src.lower()
+      if ("contract " not in low) and ("library " not in low) and ("interface " not in low):
+        lines = solidity_src.splitlines()
+        header, body = [], []
+        for ln in lines:
+          ln_stripped = ln.strip()
+          if ln_stripped.startswith("// SPDX-") or ln_stripped.startswith("pragma ") or ln_stripped.startswith("import ") or ln_stripped == "":
+            header.append(ln)
+          else:
+            body.append(ln)
+        if not body:
+          body = ["// TODO: add contract members"]
+        solidity_src = "\n".join(header).rstrip() + ("\n\n" if header else "") + "contract Contract {\n" + "\n".join(body) + "\n}\n"
+    except Exception as e:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, f"Conversion failed: {e}", exec_ctx))
+
+    # Deploy
+    try:
+      info = deploy_contract_from_source(
+        solidity_source=solidity_src,
+        rpc_url=rpc_url,
+        private_key=private_key,
+        contract_name=contract_name,
+        constructor_args=ctor_args_py,
+      )
+      return RTResult().success(String(json.dumps(info)))
+    except Exception as e:
+      return RTResult().failure(RTError(self.pos_start, self.pos_end, str(e), exec_ctx))
+  execute_deploy.arg_names = ["path", "private_key", "api_key", "rpc_url", "contract_name", "constructor_args"]
+  execute_deploy.min_args = 3
+  execute_deploy.max_args = 6
 
   def execute_code_convert_project(self, exec_ctx):
     """
@@ -2570,6 +2675,7 @@ BuiltInFunction.help          = BuiltInFunction("help")
 BuiltInFunction.exit          = BuiltInFunction("exit")
 BuiltInFunction.code_convert  = BuiltInFunction("code_convert")
 BuiltInFunction.code_convert_project = BuiltInFunction("code_convert_project")
+BuiltInFunction.deploy       = BuiltInFunction("deploy")
 
 #######################################
 # CONTEXT
@@ -2936,6 +3042,7 @@ global_symbol_table.set("help", BuiltInFunction.help)
 global_symbol_table.set("exit", BuiltInFunction.exit)
 global_symbol_table.set("code_convert", BuiltInFunction.code_convert)
 global_symbol_table.set("code_convert_project", BuiltInFunction.code_convert_project)
+global_symbol_table.set("deploy", BuiltInFunction.deploy)
 
 
 """
