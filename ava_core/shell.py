@@ -286,22 +286,35 @@ while True:
             self._stop = threading.Event()
             self._t = None
             self._enabled = (not NO_SPINNER) and bool(getattr(sys.stderr, 'isatty', lambda: False)()) and bool(getattr(sys.stdout, 'isatty', lambda: False)())
+            self._last_len = 0
         def start(self, label: str):
             if not self._enabled:
                 return
-            frames = ['|', '/', '-', '\\']
+            # Modern braille spinner with subtle color cycling
+            frames = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏']
+            colors = [
+                COLOR.get('cyan', ''),
+                COLOR.get('magenta', ''),
+                COLOR.get('blue', ''),
+                COLOR.get('green', ''),
+                COLOR.get('yellow', ''),
+            ]
+            reset = COLOR.get('reset', '')
             def run():
                 i = 0
                 while not self._stop.is_set():
                     frame = frames[i % len(frames)]
+                    col = colors[i % len(colors)]
+                    out = f"{col}{label} {frame}{reset}"
                     try:
-                        sys.stderr.write(f"\r{label} {frame}")
+                        pad = max(0, self._last_len - len(out))
+                        sys.stderr.write("\r" + out + (" " * pad))
                         sys.stderr.flush()
+                        self._last_len = len(out)
                     except Exception:
-                        # If stderr write fails, disable animation
                         break
                     i += 1
-                    time.sleep(0.07)
+                    time.sleep(0.08)
             self._t = threading.Thread(target=run, daemon=True)
             self._t.start()
         def stop(self):
@@ -310,9 +323,8 @@ while True:
             self._stop.set()
             if self._t:
                 self._t.join()
-            # clear line on stderr
             try:
-                sys.stderr.write("\r" + " " * (_cols()) + "\r")
+                sys.stderr.write("\r" + (" " * self._last_len) + "\r")
                 sys.stderr.flush()
             except Exception:
                 pass
