@@ -111,6 +111,25 @@ def _looks_like_box_art(text: str) -> bool:
       break
   return False
 
+def _strip_pow_from_stdout(text: str) -> str:
+  if not text:
+    return text
+  try:
+    lines = text.splitlines()
+    kept = []
+    for ln in lines:
+      # Drop any line containing PoW prints (manual or auto)
+      if 'PoW' in ln:
+        continue
+      kept.append(ln)
+    # Preserve trailing newline if original had it
+    out = "\n".join(kept)
+    if text.endswith('\n') and not out.endswith('\n'):
+      out += '\n'
+    return out
+  except Exception:
+    return text
+
 def welcome():
   info = (
     f"Version {APP_VERSION}\n"
@@ -378,7 +397,10 @@ while True:
     prog_out = ''
     if isinstance(result, dict):
         prog_out = result.get('stdout') or result.get('trace', {}).get('execution', {}).get('stdout') or ''
-                
+        # If PoW panel is present, remove PoW progress/result lines from Stdout
+        if pow_obj and prog_out:
+            prog_out = _strip_pow_from_stdout(prog_out)
+
     if prog_out:
         if _looks_like_box_art(prog_out):
             # Print raw if content contains its own frame

@@ -25,4 +25,7 @@ python shell.py --no-json
 -----------------------------------------------------------------------------------------------------
 
 
-exit, convert, deploy
+exit, convert, deploy\
+
+
+pow_cfg(1, 18)
