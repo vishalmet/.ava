@@ -98,12 +98,16 @@ export default function SyntaxHighlighter({ code, language, className = "" }: Sy
     <pre 
       className={`font-mono text-sm whitespace-pre-wrap ${className}`}
       style={{ 
-        backgroundColor: '#1e1e1e',
+        backgroundColor: 'transparent',
         color: '#d4d4d4',
         padding: '1rem',
         borderRadius: '0.5rem',
-        overflow: 'auto',
-        lineHeight: '1.5'
+        overflow: 'visible',
+        lineHeight: '1.5',
+        margin: 0,
+        minHeight: '100%',
+        width: 'max-content',
+        minWidth: '100%'
       }}
       dangerouslySetInnerHTML={{ __html: highlightedCode }}
     />
