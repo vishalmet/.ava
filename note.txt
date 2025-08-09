@@ -79,3 +79,7 @@ result = deploy_contract_from_source(
 
 [ava] » deploy("asd.ava", "af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "gsk_dQZTDLBuskjxOVYnpPfCWGdyb3FYrhe9nYaDSg6DS4wDKmaWNan 
 R")
+
+
+
+read the codee of the compiler and... write the user documeaantation for this language from the scratch like from variable to loops and functions and it's inbuild functions and options for that.. write the complete documantation 
