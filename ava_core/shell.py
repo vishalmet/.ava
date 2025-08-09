@@ -356,7 +356,15 @@ while True:
             print_panel('Proof-of-Work ⛏️', "\n".join(body), color=COLOR['magenta'])
         except Exception:
             pass
-
+        
+        # JSON payload (optional)
+    if show_json:
+        try:
+            json_text = json.dumps(result, indent=2, ensure_ascii=False)
+        except Exception:
+            json_text = str(result)
+        print_panel('JSON', json_text, color=COLOR['cyan'])
+        
     # Final Value
     if isinstance(result, dict) and 'final_value' in result:
         fv = result.get('final_value')
@@ -365,11 +373,12 @@ while True:
         except Exception:
             fv_text = str(fv)
         print_panel('Final Value', fv_text, color=COLOR['blue'])
-
+        
     # Stdout (program output)
     prog_out = ''
     if isinstance(result, dict):
         prog_out = result.get('stdout') or result.get('trace', {}).get('execution', {}).get('stdout') or ''
+                
     if prog_out:
         if _looks_like_box_art(prog_out):
             # Print raw if content contains its own frame
@@ -391,14 +400,5 @@ while True:
             except Exception:
                 err_txt = str(error)
         print_panel('Error', err_txt, color=COLOR['red'])
-
-    # JSON payload (optional)
-    if show_json:
-        try:
-            json_text = json.dumps(result, indent=2, ensure_ascii=False)
-        except Exception:
-            json_text = str(result)
-        print_panel('JSON', json_text, color=COLOR['cyan'])
-
     # footer spacer
     print()
