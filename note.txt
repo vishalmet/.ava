@@ -62,3 +62,15 @@ POST /convert-project
 Body: { source_code: string, target_language: "solidity"|"rust", api_key?: string, preset?: string }
 Returns: { projectType, files: [{ path, content }], nextSteps }
 No files are written; manifest is normalized and returned.
+
+
+
+---------------------------
+
+
+result = deploy_contract_from_source(
+  solidity_source=source,
+  rpc_url="https://eth-sepolia.public.blastapi.io",
+  private_key="af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6",
+  constructor_args=[5],   # <-- required arg
+)
