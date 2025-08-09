@@ -50,7 +50,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5 text-rose-500" />
-            Programming language
+            Exclusive Language 
           </motion.div>
 
           <motion.h1 variants={item} className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
