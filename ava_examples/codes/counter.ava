@@ -12,3 +12,4 @@ fun dec(num)
 end
 
 show("runned...!")
+show(60)

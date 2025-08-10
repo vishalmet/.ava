@@ -94,9 +94,10 @@ $env:Path += ";$env:APPDATA\Python\Python312\Scripts"; pyinstaller --name ava --
 use any other method to solve this issue i should deploy the code inserverless
 
 
- C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\minecraft_game.ava
- C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\operators.ava
-C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\simple.ava 
+ C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\minecraft_game.ava
+ C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\operators.ava
+C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\variables.ava 
+C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\counter.ava 
 ava_exec("ava_examples/counter.ava")
 ava_exec("ava_examples/simple.ava")
 C:\Users\Admin\AppData\Roaming\Python\Python312\Scripts\pyinstaller --name ava --onefile --console --paths ava_core ava_core\shell.py
