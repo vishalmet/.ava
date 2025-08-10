@@ -337,10 +337,10 @@ impl AvaContract {
     try {
       const contractName = getContractName(convertedCode);
       
-      // Check if private key is available
-      const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY || process.env.PRIVATE_KEY;
+      // Check if private key is available - use NEXT_PUBLIC_PRIVATE_KEY for client-side access
+      const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY;
       if (!privateKey || privateKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
-        throw new Error('Private key not configured. Please set PRIVATE_KEY environment variable.');
+        throw new Error('Private key not configured. Please set NEXT_PUBLIC_PRIVATE_KEY environment variable.');
       }
 
       // Call the external deployment API
@@ -590,9 +590,6 @@ impl AvaContract {
                 transition={{ duration: 0.3 }}
                 className="space-y-3"
               >
-                <div className="text-xs text-neutral-500 text-center">
-                  ⚠️ Note: Contract deployment requires a private key to be set in the PRIVATE_KEY environment variable
-                </div>
                 <Button
                   onClick={handleDeploy}
                   size="lg"
