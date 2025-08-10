@@ -154,8 +154,8 @@ ABI_OF_CONTRACT = os.path.join(CURRENT_PATH, 'Solidity','new_contract_abi.json')
 PRIVATE_KEY = ""
 IS_WEB3 = False
 CURRENT_TRACE = None
-# Default EVM RPC for deployments (optional override)
-DEFAULT_EVM_RPC = "https://eth-sepolia.public.blastapi.io"
+# Default EVM RPC for deployments (optional override) — Avalanche Fuji (chainId 43113)
+DEFAULT_EVM_RPC = "https://api.avax-test.network/ext/bc/C/rpc"
 #-------------- PoW Auto ---------------
 POW_ALWAYS = False
 POW_BITS = 0
