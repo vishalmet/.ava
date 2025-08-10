@@ -4,17 +4,20 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload, Key, Loader2, Edit3, Eye, EyeOff } from "lucide-react"
+import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload, Key, Loader2, Edit3, Eye, EyeOff, AlertCircle } from "lucide-react"
 import { brand } from "@/lib/brand"
 import CodeEditor from "@/components/code-editor"
+import WalletConnect from "@/components/wallet-connect"
+import { useWallet } from "@/contexts/wallet-context"
 
 export default function ConverterPage() {
+  const { isConnected, address, network } = useWallet()
+  
   const [avaCode, setAvaCode] = useState(`
 var message = "Welcome!"
 var tips = []
@@ -50,6 +53,7 @@ fun getTip(i) -> tips / i`)
   const [showApiKey, setShowApiKey] = useState(false)
   const [displayedCode, setDisplayedCode] = useState("")
   const [isTyping, setIsTyping] = useState(false)
+  const [deployedContractAddress, setDeployedContractAddress] = useState("")
 
   const languages = [
     { value: "sol", label: "Solidity (.sol)", extension: ".sol", apiValue: "solidity" },
@@ -315,20 +319,94 @@ impl AvaContract {
       return;
     }
 
+    if (!isConnected) {
+      setDeploymentStatus("❌ Please connect wallet to deploy");
+      setTimeout(() => setDeploymentStatus(""), 5000);
+      return;
+    }
+
+    if (network !== 'Fuji Testnet') {
+      setDeploymentStatus("❌ Please switch to Avalanche Fuji Testnet");
+      setTimeout(() => setDeploymentStatus(""), 5000);
+      return;
+    }
+
     setIsDeploying(true);
-    setDeploymentStatus("Deploying to Avalanche...");
+    setDeploymentStatus("Deploying to Avalanche Fuji...");
 
     try {
-      // Mock deployment process
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
       const contractName = getContractName(convertedCode);
-      const mockAddress = "0x" + Math.random().toString(16).substr(2, 40);
       
-      setDeploymentStatus(`✅ ${contractName} deployed successfully at ${mockAddress}`);
-      setTimeout(() => setDeploymentStatus(""), 10000);
+      // Check if private key is available
+      const privateKey = process.env.NEXT_PUBLIC_PRIVATE_KEY || process.env.PRIVATE_KEY;
+      if (!privateKey || privateKey === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+        throw new Error('Private key not configured. Please set PRIVATE_KEY environment variable.');
+      }
+
+      // Call the external deployment API
+      const deploymentResponse = await fetch('https://ava-api.vercel.app/deploy-contract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contract_name: contractName,
+          private_key: privateKey,
+          rpc_url: 'https://api.avax-test.network/ext/bc/C/rpc',
+          solidity_source: convertedCode
+        }),
+      });
+
+      if (!deploymentResponse.ok) {
+        const errorData = await deploymentResponse.json();
+        throw new Error(errorData.error || 'Deployment failed');
+      }
+
+      const deploymentResult = await deploymentResponse.json();
+      
+      if (!deploymentResult.success) {
+        throw new Error(deploymentResult.error || 'Deployment failed');
+      }
+
+      // Get the REAL deployment data from the API response
+      const { contract_address, transaction_hash, gas_used, block_number } = deploymentResult;
+      
+      // Store deployment information in database
+      const deploymentData = {
+        walletAddress: address,
+        contractAddress: contract_address,
+        contractName: contractName,
+        sourceCode: convertedCode,
+        targetLanguage: targetLanguage,
+        network: 'Avalanche Fuji Testnet',
+        transactionHash: transaction_hash,
+        gasUsed: gas_used?.toString() || '0',
+        status: 'success'
+      };
+
+      const response = await fetch('/api/deployments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(deploymentData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to store deployment data');
+      }
+
+      setDeploymentStatus(`✅ ${contractName} contract deployed successfully at `);
+      // Store the REAL contract address from API response for the clickable link
+      setDeployedContractAddress(contract_address);
+      setTimeout(() => {
+        setDeploymentStatus("");
+        setDeployedContractAddress("");
+      }, 10000);
+      
     } catch (error) {
-      setDeploymentStatus("❌ Deployment failed. Please try again.");
+      console.error('Deployment error:', error);
+      setDeploymentStatus(`❌ Deployment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setTimeout(() => setDeploymentStatus(""), 5000);
     } finally {
       setIsDeploying(false);
@@ -391,7 +469,7 @@ impl AvaContract {
                   Edit Key
                 </Button>
               )}
-              
+              <WalletConnect />
               <Link 
                 href="/" 
                 className="flex items-center gap-2 text-sm font-medium text-neutral-700 hover:text-rose-600 transition-colors"
@@ -510,7 +588,11 @@ impl AvaContract {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.3 }}
+                className="space-y-3"
               >
+                <div className="text-xs text-neutral-500 text-center">
+                  ⚠️ Note: Contract deployment requires a private key to be set in the PRIVATE_KEY environment variable
+                </div>
                 <Button
                   onClick={handleDeploy}
                   size="lg"
@@ -553,6 +635,18 @@ impl AvaContract {
               }`}
             >
               {deploymentStatus}
+              {deployedContractAddress && (
+                <span className="ml-2">
+                  <a
+                    href={`https://testnet.snowtrace.io/address/${deployedContractAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-green-800 transition-colors"
+                  >
+                    {deployedContractAddress}
+                  </a>
+                </span>
+              )}
             </motion.div>
           )}
 
