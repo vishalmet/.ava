@@ -83,3 +83,4 @@ R")
 
 
 read the codee of the compiler and... write the user documeaantation for this language from the scratch like from variable to loops and functions and it's inbuild functions and options for that.. write the complete documantation 
+hardcode the all of the document and send it as a string based on this train the bot and answer the ava lang coder
