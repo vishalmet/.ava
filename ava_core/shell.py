@@ -8,6 +8,7 @@ import time
 import re
 import urllib.request
 import urllib.error
+from typing import Any, Dict
 
 # Optional rich input (syntax-highlight prompt)
 try:
@@ -42,6 +43,14 @@ APP_NAME = "ava"
 APP_TAGLINE = "The Decentralized Programming Language"
 APP_VERSION = "0.1.0"
 STORE_API_URL = os.environ.get('AVA_STORE_API', 'https://ava-backend-718i40di9-gokkull04s-projects.vercel.app/api/store-ipfs')
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://gokkull04:gokul%40123@cluster0.pe15z0t.mongodb.net/ava-lang')
+
+# Optional MongoDB client
+try:
+  from pymongo import MongoClient  # type: ignore
+  PYMONGO_AVAILABLE = True
+except Exception:
+  PYMONGO_AVAILABLE = False
 
 
 def _cols(default: int = 80) -> int:
@@ -193,6 +202,60 @@ def _post_result_to_api(result_obj: dict, src_name: str = '<stdin>') -> str:
   except Exception as e:
     return f"ERROR: {e}"
 
+def _extract_block_identifier(resp_obj: Dict[str, Any]) -> str:
+  try:
+    # Prefer txHash, then blockHash, then blockNumber
+    bc = resp_obj.get('blockchain') or {}
+    txh = bc.get('txHash') or resp_obj.get('txHash')
+    if txh:
+      return str(txh)
+    bh = bc.get('blockHash') or resp_obj.get('blockHash')
+    if bh:
+      return str(bh)
+    bn = bc.get('blockNumber') or resp_obj.get('blockNumber')
+    if bn is not None:
+      return str(bn)
+    # As a very last resort, use IPFS hash as identifier
+    ipfs = (resp_obj.get('ipfs') or {}).get('ipfsHash') or resp_obj.get('ipfsHash')
+    if ipfs:
+      return str(ipfs)
+  except Exception:
+    pass
+  return ''
+
+def _store_api_result_mongo(api_response_text: str, src_name: str = '<stdin>') -> str:
+  if not api_response_text:
+    return 'skipped: empty response'
+  if not PYMONGO_AVAILABLE:
+    return 'skipped: pymongo not installed'
+  uri = MONGODB_URI
+  if not uri:
+    return 'skipped: MONGODB_URI not set'
+  # Parse response JSON if possible
+  parsed: Dict[str, Any] = {}
+  try:
+    parsed = json.loads(api_response_text)
+  except Exception:
+    parsed = {}
+  try:
+    ident = _extract_block_identifier(parsed) if parsed else ''
+    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    try:
+      db = client.get_default_database() or client["ava-lang"]
+    except Exception:
+      db = client["ava-lang"]
+    coll = db["responses"]
+    doc = {
+      'id': ident or f"{int(time.time())}",
+      'json_value_of_response': api_response_text,
+      'source': str(src_name),
+      'createdAt': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    }
+    ins = coll.insert_one(doc)
+    return f"ok: inserted {str(ins.inserted_id)}"
+  except Exception as e:
+    return f"error: {e}"
+
 def welcome():
   info = (
     f"Version {APP_VERSION}\n"
@@ -267,6 +330,9 @@ if __name__ == "__main__":
     # ALWAYS POST to API (regardless of JSON display settings) and show response
     api_resp = _post_result_to_api(result or {}, src_name)
     print_panel('Store API Response', api_resp, color=COLOR['green'])
+    # Store to MongoDB
+    mongo_status = _store_api_result_mongo(api_resp, src_name)
+    print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
     
     pow_obj = None
     if isinstance(result, dict):
@@ -562,6 +628,9 @@ if __name__ == "__main__":
       # Always POST to API and show response
       api_resp = _post_result_to_api(result or {}, '<stdin>')
       print_panel('Store API Response', api_resp, color=COLOR['green'])
+      # Store to MongoDB
+      mongo_status = _store_api_result_mongo(api_resp, '<stdin>')
+      print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
 
       # Proof-of-Work summary (if present)
       pow_obj = None

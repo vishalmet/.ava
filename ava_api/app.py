@@ -24,6 +24,27 @@ from web3_service.web3_core import deploy_contract_from_source
 app = Flask(__name__)
 CORS(app)
 
+# MongoDB configuration
+MONGODB_URI = os.environ.get(
+    'MONGODB_URI',
+    'mongodb+srv://gokkull04:gokul%40123@cluster0.pe15z0t.mongodb.net/ava-lang'
+)
+
+def _get_mongo_collection():
+    """Return the MongoDB collection used to store execution responses."""
+    try:
+        from pymongo import MongoClient  # lazy import for serverless
+    except Exception as e:
+        raise RuntimeError(f"pymongo not installed: {e}")
+    if not MONGODB_URI:
+        raise RuntimeError("MONGODB_URI is not configured")
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    try:
+        db = client.get_default_database() or client["ava-lang"]
+    except Exception:
+        db = client["ava-lang"]
+    return db["responses"]
+
 
 # Simple API docs (served at '/' and '/docs')
 _DOCS = {
@@ -109,6 +130,14 @@ _DOCS = {
                 "reason": "string",
                 "environment": "string",
                 "recommendation": "string"
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/responses",
+            "desc": "List all stored execution responses from MongoDB",
+            "response": {
+                "items": "array of { id: string, json_value_of_response: string, createdAt: string, source: string }"
             }
         }
     ],
@@ -346,6 +375,38 @@ def _build_openapi() -> Dict[str, Any]:
                         }
                     }
                 }
+            },
+            "/responses": {
+                "get": {
+                    "summary": "List stored execution responses",
+                    "responses": {
+                        "200": {
+                            "description": "Array of stored responses",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "items": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {"type": "string"},
+                                                        "json_value_of_response": {"type": "string"},
+                                                        "createdAt": {"type": "string"},
+                                                        "source": {"type": "string"}
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "500": {"description": "Failed to read from MongoDB"}
+                    }
+                }
             }
         }
     }
@@ -411,6 +472,34 @@ def redoc_ui() -> Response:
 
 def _json_error(msg: str, code: int = 400) -> Response:
     return jsonify({"error": msg}), code
+
+
+@app.get('/responses')
+def list_responses() -> Response:
+    """Return all stored execution responses from MongoDB (most recent first)."""
+    try:
+        coll = _get_mongo_collection()
+        # Sort by createdAt descending if present; otherwise by _id
+        try:
+            cursor = coll.find({}, projection={
+                '_id': False,
+                'id': True,
+                'json_value_of_response': True,
+                'createdAt': True,
+                'source': True,
+            }).sort([('createdAt', -1), ('_id', -1)])
+        except Exception:
+            cursor = coll.find({}, projection={
+                '_id': False,
+                'id': True,
+                'json_value_of_response': True,
+                'createdAt': True,
+                'source': True,
+            })
+        items = list(cursor)
+        return jsonify({"items": items}), 200
+    except Exception as e:
+        return _json_error(f"Failed to read from MongoDB: {e}", 500)
 
 
 @app.get('/health')

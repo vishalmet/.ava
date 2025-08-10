@@ -100,6 +100,21 @@ def main() -> int:
     except Exception as e:
         print(f"/convert-project-zip error: {e}")
 
+    # Test responses endpoint
+    print("\n=== GET /responses ===")
+    try:
+        r4 = requests.get(f"{base_url}/responses", timeout=30)
+        print(f"status: {r4.status_code}")
+        data4 = r4.json() if r4.headers.get("content-type", "").startswith("application/json") else {"raw": r4.text}
+        items = data4.get("items") or []
+        print(pretty({
+            "total_responses": len(items),
+            "first_response": items[0] if items else None,
+            "response_keys": list(items[0].keys()) if items else []
+        }))
+    except Exception as e:
+        print(f"/responses error: {e}")
+
     return 0
 
 

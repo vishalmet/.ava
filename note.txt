@@ -89,3 +89,7 @@ C:\Users\Admin\AppData\Roaming\Python\Python312\Scripts\pyinstaller --name ava -
 
 
 $env:Path += ";$env:APPDATA\Python\Python312\Scripts"; pyinstaller --name ava --onefile --console --paths ava_core ava_core\shell.py
+
+
+
+use any other method to solve this issue i should deploy the code inserverless
