@@ -627,8 +627,7 @@ impl AvaContract {
                 <div 
                   className="fixed inset-0 z-10"
                   onClick={() => setShowDownloadOptions(false)}
-                />
-                
+                />   
                 {/* Dropdown */}
                 <motion.div
                   initial={{ opacity: 0, y: -10 }}
