@@ -6,6 +6,8 @@ from datetime import datetime
 import threading
 import time
 import re
+import urllib.request
+import urllib.error
 
 # Optional rich input (syntax-highlight prompt)
 try:
@@ -39,6 +41,7 @@ except Exception:
 APP_NAME = "ava"
 APP_TAGLINE = "The Decentralized Programming Language"
 APP_VERSION = "0.1.0"
+STORE_API_URL = os.environ.get('AVA_STORE_API', 'https://ava-backend-718i40di9-gokkull04s-projects.vercel.app/api/store-ipfs')
 
 
 def _cols(default: int = 80) -> int:
@@ -79,21 +82,46 @@ def _wrap_lines(text: str, width: int):
   return lines
 
 def print_panel(title: str, body_text: str, color: str = None):
+  # Fallback to ASCII borders and no color when not a TTY to avoid Unicode/ANSI issues
+  try:
+    is_tty = bool(getattr(sys.stdout, 'isatty', lambda: False)())
+  except Exception:
+    is_tty = False
+  is_windows = (os.name == 'nt')
+  enc = (getattr(sys.stdout, 'encoding', '') or '').lower()
+  # Allow unicode only on non-Windows, or Windows with UTF-8 code page, unless AVA_ASCII is set
+  use_unicode = (os.environ.get('AVA_ASCII', '').strip() == '') and is_tty and ((not is_windows) or enc == 'utf-8')
   width = _cols()
   inner = max(40, width - 2)
   title_str = f" {title} "
   if len(title_str) > inner:
     title_str = title_str[:inner]
   side = (inner - len(title_str)) // 2
-  top_line = "┌" + ("─" * side) + title_str + ("─" * (inner - side - len(title_str))) + "┐"
-  bot_line = "└" + ("─" * inner) + "┘"
-  if color:
-    print(f"{color}{top_line}{COLOR['reset']}")
+  if use_unicode:
+    tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
   else:
+    tl, tr, bl, br, hz, vt = "+", "+", "+", "+", "-", "|"
+    color = None
+  top_line = tl + (hz * side) + title_str + (hz * (inner - side - len(title_str))) + tr
+  bot_line = bl + (hz * inner) + br
+  try:
+    if color:
+      print(f"{color}{top_line}{COLOR['reset']}")
+    else:
+      print(top_line)
+  except Exception:
     print(top_line)
   for ln in _wrap_lines(body_text, inner):
-    print("│" + ln.ljust(inner) + "│")
-  print(bot_line)
+    line = vt + ln.ljust(inner) + vt
+    try:
+      print(line)
+    except Exception:
+      # Best-effort print without special chars
+      print("|" + ln.ljust(inner) + "|")
+  try:
+    print(bot_line)
+  except Exception:
+    print("+" + ("-" * inner) + "+")
 
 def _looks_like_box_art(text: str) -> bool:
   if not text:
@@ -143,6 +171,27 @@ def _usage_text() -> str:
     "Environment:\n"
     "  AVA_NO_SPINNER=1     Disable loading animation globally\n"
   )
+
+def _post_result_to_api(result_obj: dict, src_name: str = '<stdin>') -> str:
+  try:
+    # Store the actual execution data to IPFS, not just metadata
+    now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    
+    # The main data to store is the execution result itself
+    payload = {
+      'data': result_obj,  # Store the actual execution data
+      'name': f"ava-execution-{int(time.time())}"
+    }
+    req = urllib.request.Request(
+      STORE_API_URL,
+      data=json.dumps(payload).encode('utf-8'),
+      headers={'Content-Type': 'application/json'},
+      method='POST'
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+      return resp.read().decode('utf-8', errors='replace')
+  except Exception as e:
+    return f"ERROR: {e}"
 
 def welcome():
   info = (
@@ -214,6 +263,11 @@ if __name__ == "__main__":
       if hdr_parts:
         summary.append("config  : " + ", ".join(hdr_parts))
     print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
+    
+    # ALWAYS POST to API (regardless of JSON display settings) and show response
+    api_resp = _post_result_to_api(result or {}, src_name)
+    print_panel('Store API Response', api_resp, color=COLOR['green'])
+    
     pow_obj = None
     if isinstance(result, dict):
       pow_obj = result.get('pow') or result.get('trace', {}).get('execution', {}).get('pow')
@@ -236,12 +290,15 @@ if __name__ == "__main__":
         print_panel('Proof-of-Work ⛏️', "\n".join(body), color=COLOR['magenta'])
       except Exception:
         pass
+    
+    # Only show JSON panel if not suppressed
     if show_json:
       try:
         json_text = json.dumps(result, indent=2, ensure_ascii=False)
       except Exception:
         json_text = str(result)
       print_panel('JSON', json_text, color=COLOR['cyan'])
+    
     prog_out = ''
     if isinstance(result, dict):
       prog_out = result.get('stdout') or result.get('trace', {}).get('execution', {}).get('stdout') or ''
@@ -502,6 +559,9 @@ if __name__ == "__main__":
           if hdr_parts:
               summary.append("config  : " + ", ".join(hdr_parts))
       print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
+      # Always POST to API and show response
+      api_resp = _post_result_to_api(result or {}, '<stdin>')
+      print_panel('Store API Response', api_resp, color=COLOR['green'])
 
       # Proof-of-Work summary (if present)
       pow_obj = None
@@ -527,7 +587,7 @@ if __name__ == "__main__":
           except Exception:
               pass
           
-          # JSON payload (optional)
+          # JSON payload (only if not suppressed)
       if show_json:
           try:
               json_text = json.dumps(result, indent=2, ensure_ascii=False)
@@ -535,8 +595,8 @@ if __name__ == "__main__":
               json_text = str(result)
           print_panel('JSON', json_text, color=COLOR['cyan'])
           
-      # Final Value
-      if isinstance(result, dict) and 'final_value' in result:
+      # Final Value (only if not suppressed)
+      if show_json and isinstance(result, dict) and 'final_value' in result:
           fv = result.get('final_value')
           try:
               fv_text = json.dumps(fv, ensure_ascii=False)

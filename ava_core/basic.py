@@ -12,14 +12,6 @@ import time
 import sys
 import io
 
-try:
-  from web3 import Web3
-  from eth_account import Account
-  _WEB3_IMPORT_ERROR = None
-except Exception as _e:
-  Web3 = None
-  Account = None
-  _WEB3_IMPORT_ERROR = str(_e)
 import hashlib
 import ast
 import re

@@ -29,7 +29,7 @@ CORS(app)
 _DOCS = {
     "name": "Ava Convert API",
     "version": "1.0",
-    "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly).",
+    "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly). Note: Solidity contract deployment has limited functionality in serverless environments.",
     "endpoints": [
         {
             "method": "GET",
@@ -79,11 +79,43 @@ _DOCS = {
                 "preset": "string (optional)"
             },
             "response": "application/zip attachment"
+        },
+        {
+            "method": "POST",
+            "path": "/deploy-contract",
+            "desc": "Compile and deploy a Solidity contract from source (limited in serverless)",
+            "body": {
+                "solidity_source": "string (required)",
+                "private_key": "string (required)",
+                "rpc_url": "string (optional)",
+                "contract_name": "string (optional)",
+                "constructor_args": "array (optional)"
+            },
+            "response": {
+                "address": "string",
+                "abi": "array",
+                "txHash": "string",
+                "contractName": "string",
+                "chainId": "integer",
+                "solcVersion": "string"
+            }
+        },
+        {
+            "method": "GET",
+            "path": "/check-solidity",
+            "desc": "Check if Solidity compilation is available in the current environment",
+            "response": {
+                "available": "boolean",
+                "reason": "string",
+                "environment": "string",
+                "recommendation": "string"
+            }
         }
     ],
     "notes": [
         "The API never writes files to disk; responses contain code or project structures.",
-        "Use the Ava REPL built-ins in `ava_core/Basic.py` to write locally if needed: code_convert(), code_convert_project()."
+        "Use the Ava REPL built-ins in `ava_core/Basic.py` to write locally if needed: code_convert(), code_convert_project().",
+        "Note: Solidity contract deployment requires filesystem access and may not work in serverless environments like Vercel. Use /check-solidity endpoint to verify compilation availability."
     ]
 }
 
@@ -100,7 +132,7 @@ def _build_openapi() -> Dict[str, Any]:
         "info": {
             "title": "Ava Convert API",
             "version": "1.0.0",
-            "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly).",
+            "description": "LLM-powered code and project conversion without writing to disk (serverless-friendly). Note: Solidity contract deployment has limited functionality in serverless environments. Use /check-solidity endpoint to verify compilation availability.",
         },
         "servers": [
             {"url": "/"}
@@ -240,7 +272,7 @@ def _build_openapi() -> Dict[str, Any]:
             },
             "/deploy-contract": {
                 "post": {
-                    "summary": "Compile and deploy a Solidity contract from source",
+                    "summary": "Compile and deploy a Solidity contract from source (limited in serverless)",
                     "requestBody": {
                         "required": True,
                         "content": {
@@ -262,7 +294,8 @@ def _build_openapi() -> Dict[str, Any]:
                                     "rpc_url": "https://eth-sepolia.public.blastapi.io",
                                     "contract_name": "C",
                                     "constructor_args": [42]
-                                }
+                                },
+                                "note": "This endpoint may not work in serverless environments due to filesystem access limitations. Check /check-solidity for status."
                             }
                         }
                     },
@@ -286,7 +319,31 @@ def _build_openapi() -> Dict[str, Any]:
                             }
                         },
                         "400": {"description": "Invalid payload"},
-                        "500": {"description": "Deployment failed"}
+                        "500": {"description": "Deployment failed"},
+                        "503": {"description": "Service unavailable - serverless environment limitation"}
+                    }
+                }
+            },
+            "/check-solidity": {
+                "get": {
+                    "summary": "Check Solidity compilation availability",
+                    "responses": {
+                        "200": {
+                            "description": "Compilation status",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "available": {"type": "boolean"},
+                                            "reason": {"type": "string"},
+                                            "environment": {"type": "string"},
+                                            "recommendation": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -358,7 +415,28 @@ def _json_error(msg: str, code: int = 400) -> Response:
 
 @app.get('/health')
 def health() -> Response:
-    return jsonify({"status": "ok"}), 200
+    # Check environment and capabilities
+    try:
+        from web3_service.web3_core import _SOLC_AVAILABLE, _is_serverless_environment
+        is_serverless = _is_serverless_environment()
+        solc_available = _SOLC_AVAILABLE and not is_serverless
+    except Exception:
+        is_serverless = os.environ.get('VERCEL') == '1'
+        solc_available = False
+    
+    env_info = {
+        "status": "ok",
+        "environment": "serverless" if is_serverless else "local",
+        "capabilities": {
+            "solidity_compilation": "available" if solc_available else "limited",
+            "filesystem_write": "readonly" if is_serverless else "full"
+        },
+        "notes": [
+            "Solidity compilation requires filesystem access and may not work in serverless environments",
+            "Use /check-solidity endpoint for detailed compilation status"
+        ]
+    }
+    return jsonify(env_info), 200
 
 
 @app.post('/convert-code')
@@ -536,7 +614,56 @@ def api_deploy_contract() -> Response:
         )
         return jsonify(info), 200
     except Exception as e:
-        return _json_error(f"Deployment failed: {e}", 500)
+        error_msg = str(e)
+        if "serverless environment" in error_msg or "filesystem access" in error_msg:
+            return _json_error(
+                f"Deployment failed: {error_msg}. "
+                f"This API is running in a serverless environment where Solidity compilation is not available. "
+                f"Consider using a pre-compiled contract or deploying from a local environment. "
+                f"Check /check-solidity endpoint for current compilation status.", 
+                503
+            )
+        else:
+            return _json_error(f"Deployment failed: {error_msg}", 500)
+
+
+@app.get('/check-solidity')
+def check_solidity_compilation() -> Response:
+    """Check if Solidity compilation is available in the current environment."""
+    try:
+        from web3_service.web3_core import _SOLC_AVAILABLE, _is_serverless_environment
+        is_serverless = _is_serverless_environment()
+        
+        if not _SOLC_AVAILABLE:
+            return jsonify({
+                "available": False,
+                "reason": "python-solcx not available",
+                "environment": "serverless" if is_serverless else "local",
+                "recommendation": "Install python-solcx for Solidity compilation"
+            }), 200
+        
+        if is_serverless:
+            return jsonify({
+                "available": False,
+                "reason": "Serverless environment - no filesystem write access",
+                "environment": "serverless",
+                "recommendation": "Use pre-compiled contracts or deploy from local environment"
+            }), 200
+        
+        return jsonify({
+            "available": True,
+            "reason": "Full compilation support available",
+            "environment": "local",
+            "recommendation": "Ready for contract compilation and deployment"
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "available": False,
+            "reason": f"Error checking compilation status: {e}",
+            "environment": "unknown",
+            "recommendation": "Check server logs for details"
+        }), 500
 
 
 # Note on storage behavior:
