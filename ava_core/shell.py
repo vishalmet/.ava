@@ -2,6 +2,7 @@ import basic
 import os
 import json
 import sys
+import multiprocessing as mp
 from datetime import datetime
 import threading
 import time
@@ -89,6 +90,48 @@ def _wrap_lines(text: str, width: int):
       s = s[cut:].lstrip()
     lines.append(s)
   return lines
+
+def _read_file_text(path: str) -> str:
+  # Try a set of common encodings with BOM handling and a final permissive fallback
+  candidate_encodings = [
+    'utf-8',
+    'utf-8-sig',
+    'utf-16',
+    'utf-16-le',
+    'utf-16-be',
+    'latin-1',
+  ]
+  for enc in candidate_encodings:
+    try:
+      with open(path, 'r', encoding=enc) as fh:
+        return fh.read()
+    except UnicodeDecodeError:
+      continue
+    except Exception:
+      # If other IO errors, break so they surface later
+      break
+  # Last resort: replace undecodable bytes to avoid crashing
+  try:
+    with open(path, 'r', encoding='utf-8', errors='replace') as fh:
+      return fh.read()
+  except Exception as e:
+    raise e
+
+def _child_run_program(fn: str, text: str, out_q):
+  try:
+    result, error = basic.run(fn, text)
+    # Convert error to dict if present to ensure picklable
+    if isinstance(result, dict):
+      res_obj = result
+    else:
+      res_obj = {'file': fn, 'error': str(error) if error else None}
+    try:
+      err_obj = basic.error_to_dict(error) if error else None
+    except Exception:
+      err_obj = {'name': 'Error', 'details': str(error)} if error else None
+    out_q.put((res_obj, err_obj))
+  except Exception as e:
+    out_q.put(({'file': fn, 'error': str(e)}, {'name': 'Error', 'details': str(e)}))
 
 def print_panel(title: str, body_text: str, color: str = None):
   # Fallback to ASCII borders and no color when not a TTY to avoid Unicode/ANSI issues
@@ -272,16 +315,7 @@ if __name__ == "__main__":
   SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
   # Allow disabling spinner globally via CLI or env
   NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
-if __name__ == "__main__":
-  ARGS = sys.argv[1:]
-  SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
-  # Allow disabling spinner globally via CLI or env
-  NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
 
-  # Early --help support for shell flags
-  if '--help' in ARGS or '-h' in ARGS:
-    print_panel('Usage', _usage_text(), color=COLOR['blue'])
-    sys.exit(0)
   # Early --help support for shell flags
   if '--help' in ARGS or '-h' in ARGS:
     print_panel('Usage', _usage_text(), color=COLOR['blue'])
@@ -299,11 +333,37 @@ if __name__ == "__main__":
       if not os.path.isfile(file_path):
         print_panel('Error', f'File not found: {file_path}', color=COLOR['red'])
         sys.exit(1)
-      with open(file_path, 'r', encoding='utf-8') as fh:
-        src = fh.read()
+      src = _read_file_text(file_path)
       src_name = file_path
-    # Execute once
-    result, error = basic.run(src_name, src)
+    
+    # Execute once with timeout guard
+    result, error = None, None
+    timeout_s = float(os.environ.get('AVA_EXEC_TIMEOUT', '15'))
+    out_q = mp.Queue()
+    p = mp.Process(target=_child_run_program, args=(src_name, src, out_q))
+    p.daemon = True
+    p.start()
+    p.join(timeout_s)
+    if p.is_alive():
+      try:
+        p.terminate()
+      except Exception:
+        pass
+      error = {'name': 'Timeout', 'details': f'Execution exceeded {timeout_s}s and was terminated.'}
+      result = {
+        'file': src_name,
+        'elapsed': 0,
+        'trace': {'execution': {'stdout': ''}},
+        'error': error
+      }
+    else:
+      try:
+        result, err_obj = out_q.get_nowait()
+        # normalize error back to simple object; basic.run interface expects error-like or None
+        error = err_obj
+      except Exception:
+        result, error = {'file': src_name, 'error': 'No result from child'}, {'name': 'Error', 'details': 'No result from child'}
+    
     # Minimal output: mirror REPL panels
     show_json = not SESSION_SUPPRESS_JSON
     header = {}
@@ -335,6 +395,14 @@ if __name__ == "__main__":
       if hdr_parts:
         summary.append("config  : " + ", ".join(hdr_parts))
     print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
+    
+    # ALWAYS POST to API (regardless of JSON display settings) and show response
+    api_resp = _post_result_to_api(result or {}, src_name)
+    print_panel('Store API Response', api_resp, color=COLOR['green'])
+    # Store to MongoDB
+    mongo_status = _store_api_result_mongo(api_resp, src_name)
+    print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
+    
     pow_obj = None
     if isinstance(result, dict):
       pow_obj = result.get('pow') or result.get('trace', {}).get('execution', {}).get('pow')
@@ -357,12 +425,15 @@ if __name__ == "__main__":
         print_panel('Proof-of-Work ⛏️', "\n".join(body), color=COLOR['magenta'])
       except Exception:
         pass
+    
+    # Only show JSON panel if not suppressed
     if show_json:
       try:
         json_text = json.dumps(result, indent=2, ensure_ascii=False)
       except Exception:
         json_text = str(result)
       print_panel('JSON', json_text, color=COLOR['cyan'])
+    
     prog_out = ''
     if isinstance(result, dict):
       prog_out = result.get('stdout') or result.get('trace', {}).get('execution', {}).get('stdout') or ''
@@ -392,116 +463,104 @@ if __name__ == "__main__":
   # No file provided: start interactive shell
   welcome()
 
-# Build prompt: avoid ANSI when using prompt_toolkit to prevent escape artifacts
-PROMPT_ANSI = f"{COLOR['magenta']}[{APP_NAME}]{COLOR['reset']} {COLOR['dim']}»{COLOR['reset']} "
-PROMPT_PLAIN = f"[{APP_NAME}] » "
-PROMPT = PROMPT_PLAIN if PTK_AVAILABLE else PROMPT_ANSI
-if PTK_AVAILABLE:
-  PROMPT_FT = HTML('<ansimagenta>[ava]</ansimagenta> <ansibrightblack>»</ansibrightblack> ')
+  # Build prompt: avoid ANSI when using prompt_toolkit to prevent escape artifacts
+  PROMPT_ANSI = f"{COLOR['magenta']}[{APP_NAME}]{COLOR['reset']} {COLOR['dim']}»{COLOR['reset']} "
+  PROMPT_PLAIN = f"[{APP_NAME}] » "
+  PROMPT = PROMPT_PLAIN if PTK_AVAILABLE else PROMPT_ANSI
+  if PTK_AVAILABLE:
+    PROMPT_FT = HTML('<ansimagenta>[ava]</ansimagenta> <ansibrightblack>»</ansibrightblack> ')
 
-# Syntax highlighting for input (optional)
-KNOWN_KEYWORDS = set(getattr(basic, 'KEYWORDS', []))
-def _get_builtins():
+  # Syntax highlighting for input (optional)
+  KNOWN_KEYWORDS = set(getattr(basic, 'KEYWORDS', []))
+  def _get_builtins():
+      try:
+          return {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.BuiltInFunction)}
+      except Exception:
+          return set()
+  KNOWN_BUILTINS = _get_builtins()
+  KNOWN_VARIABLES = set()
+  KNOWN_FUNCTIONS = set()
+
+  def _refresh_known_symbols():
+    global KNOWN_VARIABLES, KNOWN_FUNCTIONS, KNOWN_BUILTINS
     try:
-        return {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.BuiltInFunction)}
+      KNOWN_BUILTINS = {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.BuiltInFunction)}
+      KNOWN_FUNCTIONS = {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.Function)}
+      KNOWN_VARIABLES = {name for name, val in basic.global_symbol_table.symbols.items() if not isinstance(val, (basic.BuiltInFunction, basic.Function))}
     except Exception:
-        return set()
-KNOWN_BUILTINS = _get_builtins()
-KNOWN_VARIABLES = set()
-KNOWN_FUNCTIONS = set()
+      pass
 
-def _refresh_known_symbols():
-  global KNOWN_VARIABLES, KNOWN_FUNCTIONS, KNOWN_BUILTINS
-  try:
-    KNOWN_BUILTINS = {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.BuiltInFunction)}
-    KNOWN_FUNCTIONS = {name for name, val in basic.global_symbol_table.symbols.items() if isinstance(val, basic.Function)}
-    KNOWN_VARIABLES = {name for name, val in basic.global_symbol_table.symbols.items() if not isinstance(val, (basic.BuiltInFunction, basic.Function))}
-  except Exception:
-    pass
+  if PTK_AVAILABLE:
+      class X3Lexer(PTLexer):
+          def lex_document(self, document):
+              text = document.text
+              # Pre-tokenize with regex
+              token_specs = [
+                  ('COMMENT', r'#.*$'),
+                  ('STRING', r'"(?:\\.|[^"\\])*"'),
+                  ('NUMBER', r'\b\d+(?:\.\d+)?\b'),
+                  ('IDENT',  r'\b[a-zA-Z_][a-zA-Z0-9_]*\b'),
+                  ('OP',     r'[+\-*/^=]'),
+                  ('PUNCT',  r'[(),\[\];]'),
+                  ('SPACE',  r'\s+'),
+              ]
+              master = re.compile('|'.join(f'(?P<{n}>{p})' for n,p in token_specs))
 
-if PTK_AVAILABLE:
-    class X3Lexer(PTLexer):
-        def lex_document(self, document):
-            text = document.text
-            # Pre-tokenize with regex
-            token_specs = [
-                ('COMMENT', r'#.*$'),
-                ('STRING', r'"(?:\\.|[^"\\])*"'),
-                ('NUMBER', r'\b\d+(?:\.\d+)?\b'),
-                ('IDENT',  r'\b[a-zA-Z_][a-zA-Z0-9_]*\b'),
-                ('OP',     r'[+\-*/^=]'),
-                ('PUNCT',  r'[(),\[\];]'),
-                ('SPACE',  r'\s+'),
-            ]
-            master = re.compile('|'.join(f'(?P<{n}>{p})' for n,p in token_specs))
+              styles = []
+              pos = 0
+              for m in master.finditer(text):
+                  start, end = m.start(), m.end()
+                  if start > pos:
+                      # unknown chunk
+                      styles.append(('class:plain', text[pos:start]))
+                  kind = m.lastgroup
+                  value = m.group()
+                  if kind == 'COMMENT':
+                      styles.append(('class:comment', value))
+                  elif kind == 'STRING':
+                      styles.append(('class:string', value))
+                  elif kind == 'NUMBER':
+                      styles.append(('class:number', value))
+                  elif kind == 'IDENT':
+                      if value in KNOWN_KEYWORDS:
+                          styles.append(('class:keyword', value))
+                      elif value in KNOWN_BUILTINS or value in KNOWN_FUNCTIONS:
+                          styles.append(('class:function', value))
+                      elif value in KNOWN_VARIABLES:
+                          styles.append(('class:variable', value))
+                      else:
+                          styles.append(('class:ident', value))
+                  elif kind == 'OP':
+                      styles.append(('class:operator', value))
+                  elif kind == 'PUNCT':
+                      styles.append(('class:punct', value))
+                  else:
+                      styles.append(('class:plain', value))
+                  pos = end
+              if pos < len(text):
+                  styles.append(('class:plain', text[pos:]))
 
-            styles = []
-            pos = 0
-            for m in master.finditer(text):
-                start, end = m.start(), m.end()
-                if start > pos:
-                    # unknown chunk
-                    styles.append(('class:plain', text[pos:start]))
-                kind = m.lastgroup
-                value = m.group()
-                if kind == 'COMMENT':
-                    styles.append(('class:comment', value))
-                elif kind == 'STRING':
-                    styles.append(('class:string', value))
-                elif kind == 'NUMBER':
-                    styles.append(('class:number', value))
-                elif kind == 'IDENT':
-                    if value in KNOWN_KEYWORDS:
-                        styles.append(('class:keyword', value))
-                    elif value in KNOWN_BUILTINS or value in KNOWN_FUNCTIONS:
-                        styles.append(('class:function', value))
-                    elif value in KNOWN_VARIABLES:
-                        styles.append(('class:variable', value))
-                    else:
-                        styles.append(('class:ident', value))
-                elif kind == 'OP':
-                    styles.append(('class:operator', value))
-                elif kind == 'PUNCT':
-                    styles.append(('class:punct', value))
-                else:
-                    styles.append(('class:plain', value))
-                pos = end
-            if pos < len(text):
-                styles.append(('class:plain', text[pos:]))
+              def get_line(i):
+                  # prompt_toolkit expects a callable returning list of (style, text)
+                  return styles
+              return get_line
 
-            def get_line(i):
-                # prompt_toolkit expects a callable returning list of (style, text)
-                return styles
-            return get_line
+      # Use prompt_toolkit's color names (not ANSI escapes)
+      PT_STYLE = PTStyle.from_dict({
+          'plain': '',
+          'comment': 'ansibrightblack',
+          'string': 'ansimagenta',
+          'number': 'ansiyellow',
+          'keyword': 'ansicyan bold',
+          'function': 'ansigreen bold',
+          'variable': 'ansiblue',
+          'ident': '',
+          'operator': 'ansiwhite',
+          'punct': 'ansiwhite',
+      })
+      SESSION = PromptSession(lexer=X3Lexer(), style=PT_STYLE)
 
-    # Use prompt_toolkit's color names (not ANSI escapes)
-    PT_STYLE = PTStyle.from_dict({
-        'plain': '',
-        'comment': 'ansibrightblack',
-        'string': 'ansimagenta',
-        'number': 'ansiyellow',
-        'keyword': 'ansicyan bold',
-        'function': 'ansigreen bold',
-        'variable': 'ansiblue',
-        'ident': '',
-        'operator': 'ansiwhite',
-        'punct': 'ansiwhite',
-    })
-    SESSION = PromptSession(lexer=X3Lexer(), style=PT_STYLE)
-
-if __name__ == "__main__":
-  while True:
-      try:
-          if PTK_AVAILABLE:
-              text = SESSION.prompt(PROMPT_FT)
-          else:
-              text = input(PROMPT)
-      except EOFError:
-          print()
-          break
-      if text.strip() == "":
-          continue
-if __name__ == "__main__":
+  # Interactive shell loop
   while True:
       try:
           if PTK_AVAILABLE:
@@ -514,29 +573,6 @@ if __name__ == "__main__":
       if text.strip() == "":
           continue
 
-      # Per-command flags
-      line_suppress_json = False
-      stripped = text.strip()
-      if stripped == '--no-json':
-          SESSION_SUPPRESS_JSON = True
-          print(f" {COLOR['yellow']}JSON output disabled for this session{COLOR['reset']}")
-          continue
-      if stripped == '--json':
-          SESSION_SUPPRESS_JSON = False
-          print(f" {COLOR['green']}JSON output enabled for this session{COLOR['reset']}")
-          continue
-      # Convenience commands without parentheses
-      if stripped in ('clear', 'clr', 'exit', 'help'):
-          text = stripped + '()'
-          stripped = text
-      if stripped.startswith('--no-json'):
-          # apply only for this execution
-          line_suppress_json = True
-          # remove the flag token
-          parts = stripped.split(None, 1)
-          text = parts[1] if len(parts) > 1 else ''
-          if not text:
-              continue
       # Per-command flags
       line_suppress_json = False
       stripped = text.strip()
@@ -609,64 +645,7 @@ if __name__ == "__main__":
                   sys.stderr.flush()
               except Exception:
                   pass
-      # Spinner while running
-      class _Spinner:
-          def __init__(self):
-              self._stop = threading.Event()
-              self._t = None
-              self._enabled = (not NO_SPINNER) and bool(getattr(sys.stderr, 'isatty', lambda: False)()) and bool(getattr(sys.stdout, 'isatty', lambda: False)())
-              self._last_len = 0
-          def start(self, label: str):
-              if not self._enabled:
-                  return
-              # Modern braille spinner with subtle color cycling
-              frames = ['⠋ ','⠙ ','⠹ ','⠸ ','⠼ ','⠴ ','⠦ ','⠧ ','⠇ ','⠏ ']
-              colors = [
-                  COLOR.get('cyan', ''),
-                  COLOR.get('magenta', ''),
-                  COLOR.get('blue', ''),
-                  COLOR.get('green', ''),
-                  COLOR.get('yellow', ''),
-              ]
-              reset = COLOR.get('reset', '')
-              def run():
-                  i = 0
-                  while not self._stop.is_set():
-                      frame = frames[i % len(frames)]
-                      col = colors[i % len(colors)]
-                      out = f"{col}{label} {frame}{reset}"
-                      try:
-                          pad = max(0, self._last_len - len(out))
-                          sys.stderr.write("\r" + out + (" " * pad))
-                          sys.stderr.flush()
-                          self._last_len = len(out)
-                      except Exception:
-                          break
-                      i += 1
-                      time.sleep(0.08)
-              self._t = threading.Thread(target=run, daemon=True)
-              self._t.start()
-          def stop(self):
-              if not self._enabled:
-                  return
-              self._stop.set()
-              if self._t:
-                  self._t.join()
-              try:
-                  sys.stderr.write("\r" + (" " * self._last_len) + "\r")
-                  sys.stderr.flush()
-              except Exception:
-                  pass
 
-      spinner = _Spinner()
-      label = 'Running'
-      if 'pow_mine' in stripped:
-          label = 'Mining'
-      spinner.start(label)
-      try:
-          result, error = basic.run('<stdin>', text)
-      finally:
-          spinner.stop()
       spinner = _Spinner()
       label = 'Running'
       if 'pow_mine' in stripped:
@@ -679,20 +658,7 @@ if __name__ == "__main__":
 
       # Update known symbols for next input highlighting
       _refresh_known_symbols()
-      # Update known symbols for next input highlighting
-      _refresh_known_symbols()
 
-      # Header flags
-      show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
-      header = {}
-      if isinstance(result, dict):
-          header = result.get('trace', {}).get('execution', {}).get('header', {}) or {}
-          if isinstance(header, dict) and 'show_json' in header:
-              # Header can only further hide JSON; CLI --no-json overrides header True
-              try:
-                  show_json = show_json and bool(header.get('show_json'))
-              except Exception:
-                  pass
       # Header flags
       show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
       header = {}
@@ -728,6 +694,13 @@ if __name__ == "__main__":
           if hdr_parts:
               summary.append("config  : " + ", ".join(hdr_parts))
       print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
+      
+      # Always POST to API and show response
+      api_resp = _post_result_to_api(result or {}, '<stdin>')
+      print_panel('Store API Response', api_resp, color=COLOR['green'])
+      # Store to MongoDB
+      mongo_status = _store_api_result_mongo(api_resp, '<stdin>')
+      print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
 
       # Proof-of-Work summary (if present)
       pow_obj = None
@@ -753,7 +726,7 @@ if __name__ == "__main__":
           except Exception:
               pass
           
-          # JSON payload (optional)
+      # JSON payload (only if not suppressed)
       if show_json:
           try:
               json_text = json.dumps(result, indent=2, ensure_ascii=False)
@@ -761,8 +734,8 @@ if __name__ == "__main__":
               json_text = str(result)
           print_panel('JSON', json_text, color=COLOR['cyan'])
           
-      # Final Value
-      if isinstance(result, dict) and 'final_value' in result:
+      # Final Value (only if not suppressed)
+      if show_json and isinstance(result, dict) and 'final_value' in result:
           fv = result.get('final_value')
           try:
               fv_text = json.dumps(fv, ensure_ascii=False)
@@ -787,29 +760,7 @@ if __name__ == "__main__":
               print_panel('Stdout', prog_out, color=COLOR['white'])
       else:
           print_panel('Stdout', '<empty>', color=COLOR['white'])
-      if prog_out:
-          if _looks_like_box_art(prog_out):
-              # Print raw if content contains its own frame
-              section('Stdout', color=COLOR['white'])
-              print(prog_out, end='' if prog_out.endswith('\n') else '\n')
-          else:
-              print_panel('Stdout', prog_out, color=COLOR['white'])
-      else:
-          print_panel('Stdout', '<empty>', color=COLOR['white'])
 
-      # Error details (if any)
-      if error:
-          err_txt = None
-          try:
-              err_txt = error.as_string()
-          except Exception:
-              try:
-                  err_txt = json.dumps({'error': basic.error_to_dict(error)}, indent=2)
-              except Exception:
-                  err_txt = str(error)
-          print_panel('Error', err_txt, color=COLOR['red'])
-      # footer spacer
-      print()
       # Error details (if any)
       if error:
           err_txt = None

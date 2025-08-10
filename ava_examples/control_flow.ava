@@ -1,0 +1,54 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+var age = 18
+var has_ticket = true
+var is_vip = false
+
+show("Control Flow Examples:")
+
+# Simple if statement
+if age >= 18 then
+  show("You are an adult")
+end
+
+# If-else statement
+if age >= 18 then
+  show("You can vote")
+else
+  show("You cannot vote yet")
+end
+
+# If-elif-else statement
+if age < 13 then
+  show("You are a child")
+elif age < 20 then
+  show("You are a teenager")
+elif age < 65 then
+  show("You are an adult")
+else
+  show("You are a senior")
+end
+
+# Nested if statements
+if has_ticket then
+  if is_vip then
+    show("Welcome VIP! You have priority access")
+  else
+    show("Welcome! Please wait in line")
+  end
+else
+  show("You need a ticket to enter")
+end
+
+# Complex conditions
+var temperature = 25
+var humidity = 80
+var is_sunny = true
+
+if temperature > 30 and humidity > 70 then
+  show("It's hot and humid!")
+elif temperature < 10 or not is_sunny then
+  show("It's cold or cloudy")
+else
+  show("Nice weather!")
+end

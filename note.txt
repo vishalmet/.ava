@@ -85,3 +85,19 @@ read the codee of the compiler and... write the user documeaantation for this la
 hardcode the all of the document and send it as a string based on this train the bot and answer the ava lang coder
 
 C:\Users\Admin\AppData\Roaming\Python\Python312\Scripts\pyinstaller --name ava --onefile --console --paths ava_core ava_core\shell.py
+
+
+$env:Path += ";$env:APPDATA\Python\Python312\Scripts"; pyinstaller --name ava --onefile --console --paths ava_core ava_core\shell.py
+
+
+
+use any other method to solve this issue i should deploy the code inserverless
+
+
+ C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\minecraft_game.ava
+ C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\operators.ava
+C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\variables.ava 
+C:/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe c:/Users/Admin/Documents/Work/_hackthon_game/.ava/ava_core/shell.py .\ava_examples\codes\counter.ava 
+ava_exec("ava_examples/counter.ava")
+ava_exec("ava_examples/simple.ava")
+C:\Users\Admin\AppData\Roaming\Python\Python312\Scripts\pyinstaller --name ava --onefile --console --paths ava_core ava_core\shell.py

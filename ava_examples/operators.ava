@@ -1,0 +1,23 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+var a = 7
+var b = 3
+show("Arithmetic operators:")
+show(a + b)  # Addition: 10
+show(a - b)  # Subtraction: 4
+show(a * b)  # Multiplication: 21
+show(a / b)  # Division: 2.333...
+show(a ^ b)  # Power: 343
+
+show("Comparison operators:")
+show(a > b)   # Greater than: true
+show(a < b)   # Less than: false
+show(a == b)  # Equal: false
+show(a != b)  # Not equal: true
+show(a >= b)  # Greater or equal: true
+show(a <= b)  # Less or equal: false
+
+show("Logical operators:")
+show(true and false)  # AND: false
+show(true or false)   # OR: true
+show(not true)        # NOT: false
