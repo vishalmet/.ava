@@ -2,70 +2,74 @@
 
 ## 🚀 What is AVA?
 
-**AVA** is a new programming language designed for building **blockchain-powered apps** — like decentralized applications (**dApps**), fully on-chain games, and smart contract-driven servers — **faster and easier**.
+**AVA** is a next-generation programming language **built exclusively for the Avalanche blockchain ecosystem**, designed to make blockchain development **faster, easier, and more powerful**.
 
 With AVA, you can:
 
-- **Write code once** and automatically convert it into multiple blockchain languages such as **Solidity** (Ethereum/Avalanche), **Rust** (Solana/NEAR), or **Cairo** (StarkNet).
-- **Deploy directly** to different blockchains from the same environment.
-- Use built-in tools for **minting NFTs**, **storing data on-chain**, **scanning transactions**, and even **running Python code** right inside your AVA programs.
-
-Think of AVA as **one universal blockchain language** that saves you time, removes repetitive work, and gives you all the essential tools in one place.
+- Build decentralized applications (**dApps**), fully on-chain games, and blockchain-powered servers.
+- Write your code **once** and convert it into multiple blockchain languages like **Solidity**, **Rust**, and **Cairo**.
+- Deploy directly to Avalanche **and** other supported chains from the same environment.
+- Use built-in tools for **NFT minting**, **on-chain data storage**, **transaction scanning**, and even **Python code execution** inside your AVA scripts.
 
 ---
 
-## 💡 Why Use AVA?
+## 💡 Why AVA?
 
-Traditional blockchain development means learning different languages for different blockchains — Solidity for Ethereum, Rust for Solana, Cairo for StarkNet, etc.
+The Avalanche ecosystem primarily uses **Solidity**, but cross-chain development often requires multiple languages — Solidity for Ethereum, Rust for Solana, Cairo for StarkNet, etc.
 
-AVA changes that by:
+AVA solves this by:
 
-- **Unifying development**: One language, many chains.
-- **Saving time**: No more rewriting the same app for different blockchains.
-- **Simplifying deployment**: Built-in deploy tools that work across networks.
-- **Increasing flexibility**: Run Python inside AVA for advanced logic, AI, or integrations.
-- **Optimizing costs**: Batch transactions and efficient storage save on gas fees.
+- **Focusing on Avalanche first** — optimized for the Avalanche network.
+- **Supporting multi-chain compatibility** — compile and deploy to other chains when needed.
+- **Simplifying deployment** — built-in cross-chain deployment tools.
+- **Boosting flexibility** — integrate Python directly for AI, data processing, or automation.
+- **Lowering costs** — batch transactions and store data efficiently on-chain.
 
 ---
 
 ## ✨ Key Features
 
-### 1. **Multi-Target Compilation**
+### 1. **Avalanche-First Development**
 
-Write in AVA and convert automatically to:
+- Optimized for Avalanche’s C-Chain.
+- Uses Avalanche-native deployment tools and RPC integrations.
 
-- Solidity
-- Rust
-- Cairo
-- More coming soon
+### 2. **Multi-Target Compilation**
 
-### 2. **Cross-Chain Deployment**
+- Write in AVA and convert automatically to:
+    - Solidity (Ethereum, Avalanche)
+    - Rust (Solana, NEAR)
+    - Cairo (StarkNet)
+- Save time by avoiding multiple rewrites.
 
-Deploy AVA contracts to Ethereum, Avalanche, Solana, StarkNet, and more — all from one command.
+### 3. **Cross-Chain Deployment**
 
-### 3. **Account Abstraction**
+- Deploy to Avalanche and other blockchains from the same command-line interface.
 
-A single, unified account model that works across chains — no rewriting account logic.
+### 4. **Account Abstraction**
 
-### 4. **Python Integration**
+- Unified account model that works across chains without code changes.
 
-Run Python scripts inside AVA for AI models, data processing, or complex algorithms.
+### 5. **Python Integration**
 
-### 5. **Proof-of-Work Execution**
+- Run Python directly inside AVA for advanced logic or external integrations.
 
-Each execution can generate a proof to ensure the result is valid and verified.
+### 6. **Proof-of-Work Execution**
 
-### 6. **On-Chain Storage**
+- Generate verifiable execution proofs for trustless validation.
 
-Store app data and game states **directly on the blockchain** with batch transactions for efficiency.
+### 7. **On-Chain Storage**
 
-### 7. **Built-In Blockchain Tools**
+- Store application data and game states directly on Avalanche and other chains.
+- Batch transactions for reduced gas costs.
 
-- **AVA Scanner**: View and track all transactions from your contracts.
+### 8. **Built-In Blockchain Tools**
+
+- **AVA Scanner**: Track contract transactions in real time.
 - **Minting Support**: Create NFTs and tokens instantly.
-- **Game Development Ready**: Build interactive blockchain games without extra setup.
+- **Game Development Ready**: Build and deploy on-chain games with ease.
 
-### 8. **Two Development Modes**
+### 9. **Two Development Modes**
 
 - **Interactive Shell Mode** — test and run commands instantly.
 - **Script Mode** — write `.ava` files for full projects and deploy them.
@@ -74,29 +78,29 @@ Store app data and game states **directly on the blockchain** with batch transac
 
 ## 🛠 Example Use Cases
 
-- **Smart Contracts**: Write once, deploy to multiple chains.
-- **On-Chain Games**: Manage game logic and player states fully on-chain.
-- **NFT Minting Platforms**: Create and deploy minting contracts in minutes.
-- **Blockchain Servers**: Run decentralized server logic directly from AVA.
+- **Avalanche Smart Contracts** — create and deploy directly to Avalanche C-Chain.
+- **Cross-Chain Games** — develop Avalanche-first games that also work on other chains.
+- **NFT Marketplaces** — mint and manage NFTs natively on Avalanche.
+- **Blockchain Servers** — run decentralized server logic on-chain.
 
 ---
 
 ## 🌍 Who is AVA for?
 
-- **Blockchain developers** who want to target multiple chains without rewriting code.
-- **Game developers** interested in fully on-chain gameplay.
-- **Web3 startups** that need faster contract creation and deployment.
-- **Python developers** who want to enter blockchain without learning multiple new languages.
+- **Avalanche developers** who want a faster and more flexible way to build.
+- **Multi-chain developers** who want Avalanche as their base but deploy elsewhere too.
+- **Web3 startups** in the Avalanche ecosystem.
+- **Python developers** entering blockchain without learning multiple new languages.
 
 ---
 
 ## 📌 Summary
 
-AVA is the **universal blockchain language** that lets you:
+AVA is the **Avalanche-first blockchain language** that lets you:
 
-1. Build once → run anywhere.
-2. Deploy to multiple blockchains easily.
-3. Use one environment for development, storage, deployment, and scanning.
-4. Integrate Python and other tools seamlessly.
+1. Develop and deploy directly to Avalanche with native optimizations.
+2. Compile to other blockchain languages for cross-chain compatibility.
+3. Use one language for development, deployment, scanning, minting, and storage.
+4. Seamlessly integrate Python logic.
 
-With AVA, blockchain development becomes **simpler, faster, and more powerful**.
+With AVA, building for Avalanche — and beyond — becomes **simpler, faster, and more powerful**.
