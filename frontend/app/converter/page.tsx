@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload, Key, Loader2, Edit3, Eye, EyeOff, AlertCircle } from "lucide-react"
+import { ArrowRight, Copy, Download, FileCode2, Sparkles, ArrowLeft, Rocket, Upload, Key, Loader2, Edit3, Eye, EyeOff, AlertCircle, ChevronDown } from "lucide-react"
 import { brand } from "@/lib/brand"
 import CodeEditor from "@/components/code-editor"
 import WalletConnect from "@/components/wallet-connect"
@@ -54,6 +54,8 @@ fun getTip(i) -> tips / i`)
   const [displayedCode, setDisplayedCode] = useState("")
   const [isTyping, setIsTyping] = useState(false)
   const [deployedContractAddress, setDeployedContractAddress] = useState("")
+  const [isDownloadingSetup, setIsDownloadingSetup] = useState(false)
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false)
 
   const languages = [
     { value: "sol", label: "Solidity (.sol)", extension: ".sol", apiValue: "solidity" },
@@ -418,7 +420,7 @@ impl AvaContract {
   }
 
   const downloadCode = (code: string, extension: string) => {
-    const contractName = getContractName(code);
+    const contractName = getContractName(code)
     const blob = new Blob([code], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -429,6 +431,73 @@ impl AvaContract {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   }
+
+  const downloadWithSetup = async (code: string, extension: string) => {
+    if (!convertedCode) {
+      return
+    }
+
+    setIsDownloadingSetup(true)
+    
+    try {
+      // Get API key from localStorage
+      const storedApiKey = localStorage.getItem('say_my_name')
+      if (!storedApiKey) {
+        throw new Error('API key not found. Please set your Groq API key first.')
+      }
+
+      const targetLang = languages.find(l => l.value === targetLanguage)?.apiValue || "solidity"
+      
+      const response = await fetch('https://ava-api.vercel.app/convert-project-zip', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          api_key: storedApiKey,
+          source_code: `${avaCode}`,
+          target_language: 'solidity'
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`)
+      }
+
+      // Get the zip file as blob
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ava-project-${targetLanguage}.zip`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+      
+    } catch (error) {
+      console.error('Setup download error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to download setup. Please try again.')
+    } finally {
+      setIsDownloadingSetup(false)
+      setShowDownloadOptions(false)
+    }
+  }
+
+  // Handle click outside download options
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showDownloadOptions && !(event.target as Element).closest('.download-options-container')) {
+        setShowDownloadOptions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showDownloadOptions])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
@@ -547,9 +616,53 @@ impl AvaContract {
               languageOptions={languages}
               onLanguageChange={setTargetLanguage}
               onCopy={() => copyToClipboard(convertedCode)}
-              onDownload={() => downloadCode(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')}
+              onDownload={() => setShowDownloadOptions(true)}
               downloadExtension={languages.find(l => l.value === targetLanguage)?.extension}
             />
+
+            {/* Download Options Dropdown */}
+            {showDownloadOptions && (
+              <>
+                {/* Backdrop */}
+                <div 
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowDownloadOptions(false)}
+                />
+                
+                {/* Dropdown */}
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="absolute top-0 right-0 bg-white border rounded-lg shadow-lg z-20 min-w-[200px] download-options-container"
+                >
+                  <div className="p-2 space-y-1">
+                    <button
+                      onClick={() => {
+                        downloadCode(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')
+                        setShowDownloadOptions(false)
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 rounded-md transition-colors flex items-center gap-2"
+                    >
+                      <FileCode2 className="h-4 w-4" />
+                      Download only contract
+                    </button>
+                    <button
+                      onClick={() => downloadWithSetup(convertedCode, languages.find(l => l.value === targetLanguage)?.extension || '.txt')}
+                      disabled={isDownloadingSetup}
+                      className="w-full text-left px-3 py-2 text-sm text-neutral-700 hover:bg-neutral-50 rounded-md transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isDownloadingSetup ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Rocket className="h-4 w-4" />
+                      )}
+                      {isDownloadingSetup ? 'Downloading...' : 'Download with setup'}
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
           </div>
         </motion.div>
 
