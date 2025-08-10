@@ -30,6 +30,7 @@ export default function WalletConnect({ className }: WalletConnectProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState<string>('')
   const [balance, setBalance] = useState<string>('')
+  const [isManuallyDisconnected, setIsManuallyDisconnected] = useState(false)
 
   // Update global wallet state when local state changes
   useEffect(() => {
@@ -176,6 +177,11 @@ export default function WalletConnect({ className }: WalletConnectProps) {
   // Safe event handler functions
   const handleAccountsChanged = useCallback(async (accounts: string[]) => {
     try {
+      // If user manually disconnected, don't auto-reconnect
+      if (isManuallyDisconnected) {
+        return
+      }
+
       if (accounts.length === 0) {
         // User disconnected
         setIsConnected(false)
@@ -192,7 +198,7 @@ export default function WalletConnect({ className }: WalletConnectProps) {
     } catch (err) {
       console.error('Error handling account change:', err)
     }
-  }, [checkNetwork, fetchBalance])
+  }, [checkNetwork, fetchBalance, isManuallyDisconnected])
 
   const handleChainChanged = useCallback(async () => {
     try {
@@ -209,15 +215,20 @@ export default function WalletConnect({ className }: WalletConnectProps) {
   const handleDisconnect = useCallback(() => {
     try {
       setIsConnected(false)
-        setAddress('')
-        setNetwork('')
-        setBalance('')
+      setAddress('')
+      setNetwork('')
+      setBalance('')
     } catch (err) {
       console.error('Error handling disconnect:', err)
     }
   }, [])
 
   const checkConnection = useCallback(async () => {
+    // If user manually disconnected, don't check connection
+    if (isManuallyDisconnected) {
+      return
+    }
+
     const provider = getEthereumProvider()
     if (provider) {
       try {
@@ -230,7 +241,7 @@ export default function WalletConnect({ className }: WalletConnectProps) {
         console.error('Error checking connection:', error)
       }
     }
-  }, [getEthereumProvider, handleAccountsChanged, checkNetwork])
+  }, [getEthereumProvider, handleAccountsChanged, checkNetwork, isManuallyDisconnected])
 
   useEffect(() => {
     let mounted = true
@@ -282,7 +293,7 @@ export default function WalletConnect({ className }: WalletConnectProps) {
         }
       }
     }
-  }, [checkConnection, getEthereumProvider, handleAccountsChanged, handleChainChanged, handleDisconnect, detectWalletExtensions])
+  }, [checkConnection, getEthereumProvider, handleAccountsChanged, handleChainChanged, handleDisconnect, detectWalletExtensions, isManuallyDisconnected])
 
   const connectWallet = async () => {
     const provider = getEthereumProvider()
@@ -295,6 +306,9 @@ export default function WalletConnect({ className }: WalletConnectProps) {
     setError('')
     
     try {
+      // Reset manual disconnect flag when connecting
+      setIsManuallyDisconnected(false)
+      
       // Request wallet connection
       const accounts = await provider.request({ 
         method: 'eth_requestAccounts' 
@@ -374,8 +388,10 @@ export default function WalletConnect({ className }: WalletConnectProps) {
   }
 
   const disconnectWallet = async () => {
-    // Note: ethereum providers don't have a built-in disconnect method
-    // We just clear our local state
+    // Set manual disconnect flag to prevent auto-reconnection
+    setIsManuallyDisconnected(true)
+    
+    // Clear local state
     setIsConnected(false)
     setAddress('')
     setNetwork('')
