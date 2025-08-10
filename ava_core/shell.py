@@ -6,6 +6,9 @@ from datetime import datetime
 import threading
 import time
 import re
+import urllib.request
+import urllib.error
+from typing import Any, Dict
 
 # Optional rich input (syntax-highlight prompt)
 try:
@@ -39,6 +42,15 @@ except Exception:
 APP_NAME = "ava"
 APP_TAGLINE = "The Decentralized Programming Language"
 APP_VERSION = "0.1.0"
+STORE_API_URL = os.environ.get('AVA_STORE_API', 'https://ava-backend-718i40di9-gokkull04s-projects.vercel.app/api/store-ipfs')
+MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb+srv://gokkull04:gokul%40123@cluster0.pe15z0t.mongodb.net/ava-lang')
+
+# Optional MongoDB client
+try:
+  from pymongo import MongoClient  # type: ignore
+  PYMONGO_AVAILABLE = True
+except Exception:
+  PYMONGO_AVAILABLE = False
 
 
 def _cols(default: int = 80) -> int:
@@ -79,21 +91,46 @@ def _wrap_lines(text: str, width: int):
   return lines
 
 def print_panel(title: str, body_text: str, color: str = None):
+  # Fallback to ASCII borders and no color when not a TTY to avoid Unicode/ANSI issues
+  try:
+    is_tty = bool(getattr(sys.stdout, 'isatty', lambda: False)())
+  except Exception:
+    is_tty = False
+  is_windows = (os.name == 'nt')
+  enc = (getattr(sys.stdout, 'encoding', '') or '').lower()
+  # Allow unicode only on non-Windows, or Windows with UTF-8 code page, unless AVA_ASCII is set
+  use_unicode = (os.environ.get('AVA_ASCII', '').strip() == '') and is_tty and ((not is_windows) or enc == 'utf-8')
   width = _cols()
   inner = max(40, width - 2)
   title_str = f" {title} "
   if len(title_str) > inner:
     title_str = title_str[:inner]
   side = (inner - len(title_str)) // 2
-  top_line = "┌" + ("─" * side) + title_str + ("─" * (inner - side - len(title_str))) + "┐"
-  bot_line = "└" + ("─" * inner) + "┘"
-  if color:
-    print(f"{color}{top_line}{COLOR['reset']}")
+  if use_unicode:
+    tl, tr, bl, br, hz, vt = "┌", "┐", "└", "┘", "─", "│"
   else:
+    tl, tr, bl, br, hz, vt = "+", "+", "+", "+", "-", "|"
+    color = None
+  top_line = tl + (hz * side) + title_str + (hz * (inner - side - len(title_str))) + tr
+  bot_line = bl + (hz * inner) + br
+  try:
+    if color:
+      print(f"{color}{top_line}{COLOR['reset']}")
+    else:
+      print(top_line)
+  except Exception:
     print(top_line)
   for ln in _wrap_lines(body_text, inner):
-    print("│" + ln.ljust(inner) + "│")
-  print(bot_line)
+    line = vt + ln.ljust(inner) + vt
+    try:
+      print(line)
+    except Exception:
+      # Best-effort print without special chars
+      print("|" + ln.ljust(inner) + "|")
+  try:
+    print(bot_line)
+  except Exception:
+    print("+" + ("-" * inner) + "+")
 
 def _looks_like_box_art(text: str) -> bool:
   if not text:
@@ -144,6 +181,81 @@ def _usage_text() -> str:
     "  AVA_NO_SPINNER=1     Disable loading animation globally\n"
   )
 
+def _post_result_to_api(result_obj: dict, src_name: str = '<stdin>') -> str:
+  try:
+    # Store the actual execution data to IPFS, not just metadata
+    now_iso = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+    
+    # The main data to store is the execution result itself
+    payload = {
+      'data': result_obj,  # Store the actual execution data
+      'name': f"ava-execution-{int(time.time())}"
+    }
+    req = urllib.request.Request(
+      STORE_API_URL,
+      data=json.dumps(payload).encode('utf-8'),
+      headers={'Content-Type': 'application/json'},
+      method='POST'
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+      return resp.read().decode('utf-8', errors='replace')
+  except Exception as e:
+    return f"ERROR: {e}"
+
+def _extract_block_identifier(resp_obj: Dict[str, Any]) -> str:
+  try:
+    # Prefer txHash, then blockHash, then blockNumber
+    bc = resp_obj.get('blockchain') or {}
+    txh = bc.get('txHash') or resp_obj.get('txHash')
+    if txh:
+      return str(txh)
+    bh = bc.get('blockHash') or resp_obj.get('blockHash')
+    if bh:
+      return str(bh)
+    bn = bc.get('blockNumber') or resp_obj.get('blockNumber')
+    if bn is not None:
+      return str(bn)
+    # As a very last resort, use IPFS hash as identifier
+    ipfs = (resp_obj.get('ipfs') or {}).get('ipfsHash') or resp_obj.get('ipfsHash')
+    if ipfs:
+      return str(ipfs)
+  except Exception:
+    pass
+  return ''
+
+def _store_api_result_mongo(api_response_text: str, src_name: str = '<stdin>') -> str:
+  if not api_response_text:
+    return 'skipped: empty response'
+  if not PYMONGO_AVAILABLE:
+    return 'skipped: pymongo not installed'
+  uri = MONGODB_URI
+  if not uri:
+    return 'skipped: MONGODB_URI not set'
+  # Parse response JSON if possible
+  parsed: Dict[str, Any] = {}
+  try:
+    parsed = json.loads(api_response_text)
+  except Exception:
+    parsed = {}
+  try:
+    ident = _extract_block_identifier(parsed) if parsed else ''
+    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    try:
+      db = client.get_default_database() or client["ava-lang"]
+    except Exception:
+      db = client["ava-lang"]
+    coll = db["responses"]
+    doc = {
+      'id': ident or f"{int(time.time())}",
+      'json_value_of_response': api_response_text,
+      'source': str(src_name),
+      'createdAt': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+    }
+    ins = coll.insert_one(doc)
+    return f"ok: inserted {str(ins.inserted_id)}"
+  except Exception as e:
+    return f"error: {e}"
+
 def welcome():
   info = (
     f"Version {APP_VERSION}\n"
@@ -160,7 +272,16 @@ if __name__ == "__main__":
   SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
   # Allow disabling spinner globally via CLI or env
   NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
+if __name__ == "__main__":
+  ARGS = sys.argv[1:]
+  SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
+  # Allow disabling spinner globally via CLI or env
+  NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
 
+  # Early --help support for shell flags
+  if '--help' in ARGS or '-h' in ARGS:
+    print_panel('Usage', _usage_text(), color=COLOR['blue'])
+    sys.exit(0)
   # Early --help support for shell flags
   if '--help' in ARGS or '-h' in ARGS:
     print_panel('Usage', _usage_text(), color=COLOR['blue'])
@@ -380,7 +501,42 @@ if __name__ == "__main__":
           break
       if text.strip() == "":
           continue
+if __name__ == "__main__":
+  while True:
+      try:
+          if PTK_AVAILABLE:
+              text = SESSION.prompt(PROMPT_FT)
+          else:
+              text = input(PROMPT)
+      except EOFError:
+          print()
+          break
+      if text.strip() == "":
+          continue
 
+      # Per-command flags
+      line_suppress_json = False
+      stripped = text.strip()
+      if stripped == '--no-json':
+          SESSION_SUPPRESS_JSON = True
+          print(f" {COLOR['yellow']}JSON output disabled for this session{COLOR['reset']}")
+          continue
+      if stripped == '--json':
+          SESSION_SUPPRESS_JSON = False
+          print(f" {COLOR['green']}JSON output enabled for this session{COLOR['reset']}")
+          continue
+      # Convenience commands without parentheses
+      if stripped in ('clear', 'clr', 'exit', 'help'):
+          text = stripped + '()'
+          stripped = text
+      if stripped.startswith('--no-json'):
+          # apply only for this execution
+          line_suppress_json = True
+          # remove the flag token
+          parts = stripped.split(None, 1)
+          text = parts[1] if len(parts) > 1 else ''
+          if not text:
+              continue
       # Per-command flags
       line_suppress_json = False
       stripped = text.strip()
@@ -453,7 +609,64 @@ if __name__ == "__main__":
                   sys.stderr.flush()
               except Exception:
                   pass
+      # Spinner while running
+      class _Spinner:
+          def __init__(self):
+              self._stop = threading.Event()
+              self._t = None
+              self._enabled = (not NO_SPINNER) and bool(getattr(sys.stderr, 'isatty', lambda: False)()) and bool(getattr(sys.stdout, 'isatty', lambda: False)())
+              self._last_len = 0
+          def start(self, label: str):
+              if not self._enabled:
+                  return
+              # Modern braille spinner with subtle color cycling
+              frames = ['⠋ ','⠙ ','⠹ ','⠸ ','⠼ ','⠴ ','⠦ ','⠧ ','⠇ ','⠏ ']
+              colors = [
+                  COLOR.get('cyan', ''),
+                  COLOR.get('magenta', ''),
+                  COLOR.get('blue', ''),
+                  COLOR.get('green', ''),
+                  COLOR.get('yellow', ''),
+              ]
+              reset = COLOR.get('reset', '')
+              def run():
+                  i = 0
+                  while not self._stop.is_set():
+                      frame = frames[i % len(frames)]
+                      col = colors[i % len(colors)]
+                      out = f"{col}{label} {frame}{reset}"
+                      try:
+                          pad = max(0, self._last_len - len(out))
+                          sys.stderr.write("\r" + out + (" " * pad))
+                          sys.stderr.flush()
+                          self._last_len = len(out)
+                      except Exception:
+                          break
+                      i += 1
+                      time.sleep(0.08)
+              self._t = threading.Thread(target=run, daemon=True)
+              self._t.start()
+          def stop(self):
+              if not self._enabled:
+                  return
+              self._stop.set()
+              if self._t:
+                  self._t.join()
+              try:
+                  sys.stderr.write("\r" + (" " * self._last_len) + "\r")
+                  sys.stderr.flush()
+              except Exception:
+                  pass
 
+      spinner = _Spinner()
+      label = 'Running'
+      if 'pow_mine' in stripped:
+          label = 'Mining'
+      spinner.start(label)
+      try:
+          result, error = basic.run('<stdin>', text)
+      finally:
+          spinner.stop()
       spinner = _Spinner()
       label = 'Running'
       if 'pow_mine' in stripped:
@@ -466,7 +679,20 @@ if __name__ == "__main__":
 
       # Update known symbols for next input highlighting
       _refresh_known_symbols()
+      # Update known symbols for next input highlighting
+      _refresh_known_symbols()
 
+      # Header flags
+      show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
+      header = {}
+      if isinstance(result, dict):
+          header = result.get('trace', {}).get('execution', {}).get('header', {}) or {}
+          if isinstance(header, dict) and 'show_json' in header:
+              # Header can only further hide JSON; CLI --no-json overrides header True
+              try:
+                  show_json = show_json and bool(header.get('show_json'))
+              except Exception:
+                  pass
       # Header flags
       show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
       header = {}
@@ -561,7 +787,29 @@ if __name__ == "__main__":
               print_panel('Stdout', prog_out, color=COLOR['white'])
       else:
           print_panel('Stdout', '<empty>', color=COLOR['white'])
+      if prog_out:
+          if _looks_like_box_art(prog_out):
+              # Print raw if content contains its own frame
+              section('Stdout', color=COLOR['white'])
+              print(prog_out, end='' if prog_out.endswith('\n') else '\n')
+          else:
+              print_panel('Stdout', prog_out, color=COLOR['white'])
+      else:
+          print_panel('Stdout', '<empty>', color=COLOR['white'])
 
+      # Error details (if any)
+      if error:
+          err_txt = None
+          try:
+              err_txt = error.as_string()
+          except Exception:
+              try:
+                  err_txt = json.dumps({'error': basic.error_to_dict(error)}, indent=2)
+              except Exception:
+                  err_txt = str(error)
+          print_panel('Error', err_txt, color=COLOR['red'])
+      # footer spacer
+      print()
       # Error details (if any)
       if error:
           err_txt = None

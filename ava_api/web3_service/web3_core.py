@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import re
+import re, os
 from typing import Any, Dict, List, Optional, Tuple
 
 from web3 import Web3
@@ -19,6 +19,17 @@ except Exception as _e:  # pragma: no cover
     _SOLC_AVAILABLE = False
     _SOLC_IMPORT_ERROR = str(_e)
 
+# Check if we're in a serverless environment
+def _is_serverless_environment() -> bool:
+    """Detect if we're running in a serverless environment like Vercel."""
+    return (
+        os.environ.get('VERCEL') == '1' or
+        os.environ.get('AWS_LAMBDA_FUNCTION_NAME') or
+        os.environ.get('FUNCTION_TARGET') or
+        os.environ.get('K_SERVICE') or
+        not os.access(os.path.expanduser('~'), os.W_OK)
+    )
+
 
 def _ensure_solc_for_source(source_code: str) -> str:
     """
@@ -30,12 +41,38 @@ def _ensure_solc_for_source(source_code: str) -> str:
             f"python-solcx is required to compile Solidity. Import failed: {_SOLC_IMPORT_ERROR}"
         )
 
-    # install_solc_pragma will parse `pragma solidity` and install a matching version
-    version = install_solc_pragma(source_code)
-    # Normalize to plain string for downstream JSON serialization
-    version_str = str(version)
-    set_solc_version(version_str)
-    return version_str
+    # Check if we're in a serverless environment first
+    if _is_serverless_environment():
+        # In serverless, try to use a default version without installing
+        try:
+            default_version = "0.8.20"
+            set_solc_version(default_version)
+            return default_version
+        except Exception as e:
+            raise RuntimeError(
+                f"Solidity compilation not available in serverless environment. "
+                f"python-solcx requires filesystem access to install compilers. "
+                f"Consider using a pre-compiled contract or different deployment method. "
+                f"Error: {e}"
+            ) from e
+    
+    try:
+        # install_solc_pragma will parse `pragma solidity` and install a matching version
+        version = install_solc_pragma(source_code)
+        # Normalize to plain string for downstream JSON serialization
+        version_str = str(version)
+        set_solc_version(version_str)
+        return version_str
+    except (OSError, PermissionError, FileNotFoundError) as e:
+        # Handle filesystem access issues
+        if "No such file or directory" in str(e) or ".solcx" in str(e):
+            raise RuntimeError(
+                f"Solidity compilation failed due to filesystem access issues. "
+                f"Error: {e}. "
+                f"Consider using a pre-compiled contract or different deployment method."
+            ) from e
+        else:
+            raise RuntimeError(f"Failed to setup Solidity compiler: {e}") from e
 
 
 def _build_standard_input(source_filename: str, source_code: str) -> Dict[str, Any]:
@@ -76,27 +113,34 @@ def compile_contract_from_string(
 
     artifact_dict contains at least: {'abi': [...], 'bytecode': '0x...'}
     """
-    source_filename = "Contract.sol"
-    solc_version = _ensure_solc_for_source(solidity_source)
-    standard_json = _build_standard_input(source_filename, solidity_source)
-    compiled = compile_standard(standard_json)
+    try:
+        source_filename = "Contract.sol"
+        solc_version = _ensure_solc_for_source(solidity_source)
+        standard_json = _build_standard_input(source_filename, solidity_source)
+        compiled = compile_standard(standard_json)
 
-    file_out = compiled.get("contracts", {}).get(source_filename, {})
-    if not file_out:
-        raise RuntimeError("Compiler returned no contracts for source")
+        file_out = compiled.get("contracts", {}).get(source_filename, {})
+        if not file_out:
+            raise RuntimeError("Compiler returned no contracts for source")
 
-    selected_name = _select_contract_name(file_out, contract_name)
-    entry = file_out.get(selected_name) or {}
-    abi = entry.get("abi") or []
-    bytecode = (entry.get("evm") or {}).get("bytecode", {}).get("object") or ""
-    if not bytecode:
-        raise RuntimeError("Compiled bytecode is empty; check the contract or pragma")
+        selected_name = _select_contract_name(file_out, contract_name)
+        entry = file_out.get(selected_name) or {}
+        abi = entry.get("abi") or []
+        bytecode = (entry.get("evm") or {}).get("bytecode", {}).get("object") or ""
+        if not bytecode:
+            raise RuntimeError("Compiled bytecode is empty; check the contract or pragma")
 
-    return selected_name, {
-        "abi": abi,
-        "bytecode": bytecode if bytecode.startswith("0x") else ("0x" + bytecode),
-        "solcVersion": solc_version,
-    }
+        return selected_name, {
+            "abi": abi,
+            "bytecode": bytecode if bytecode.startswith("0x") else ("0x" + bytecode),
+            "solcVersion": solc_version,
+        }
+    except Exception as e:
+        # If compilation fails, try fallback method
+        if "serverless environment" in str(e) or "filesystem access" in str(e):
+            return compile_contract_fallback(solidity_source, contract_name)
+        else:
+            raise RuntimeError(f"Contract compilation failed: {e}") from e
 
 
 def _build_eip1559_fees(w3: Web3) -> Dict[str, int]:
@@ -130,6 +174,14 @@ def deploy_contract_from_source(
     constructor_args = constructor_args or []
 
     selected_name, artifact = compile_contract_from_string(solidity_source, contract_name)
+    
+    # Check if we're using fallback compilation
+    if artifact.get("note") and "Fallback compilation" in artifact["note"]:
+        raise RuntimeError(
+            "Contract deployment failed: Using fallback compilation due to serverless environment. "
+            "python-solcx requires filesystem access to compile contracts. "
+            "Consider using a pre-compiled contract or deploying from a local environment."
+        )
 
     # Use a short HTTP timeout to fail fast on bad endpoints
     w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 15}))
@@ -217,6 +269,44 @@ def deploy_contract_from_source(
         "solcVersion": artifact["solcVersion"],
     }
 
+def compile_contract_fallback(
+    solidity_source: str,
+    contract_name: Optional[str] = None,
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Fallback compilation method that provides a basic contract structure
+    when python-solcx is not available or fails.
+    
+    This is a simplified approach that returns a basic contract structure
+    for demonstration purposes in serverless environments.
+    """
+    # Extract contract name from source if not provided
+    if not contract_name:
+        # Simple regex to find contract name
+        import re
+        contract_match = re.search(r'contract\s+(\w+)', solidity_source)
+        if contract_match:
+            contract_name = contract_match.group(1)
+        else:
+            contract_name = "Contract"
+    
+    # Return a basic structure that can be used for deployment
+    # Note: This is a simplified approach and won't have the actual ABI/bytecode
+    return contract_name, {
+        "abi": [
+            {
+                "type": "constructor",
+                "inputs": [],
+                "stateMutability": "nonpayable"
+            }
+        ],
+        "bytecode": "0x",  # Empty bytecode - this won't actually deploy
+        "solcVersion": "0.8.20",
+        "note": "Fallback compilation - contract cannot be deployed without proper compilation"
+    }
+
+
+# Example contract for testing
 source = """
 pragma solidity ^0.8.20;
 contract Counter {

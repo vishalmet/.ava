@@ -78,7 +78,7 @@ def main() -> int:
         payload["constructor_args"] = ctor_args
 
     try:
-        r = requests.post(f"{base_url}/deploy-contract", json=payload, timeout=300)
+        r = requests.post(f"https://ava-api.vercel.app/deploy-contract", json=payload, timeout=300)
         print(f"status: {r.status_code}")
         ct = r.headers.get("content-type", "")
         if ct.startswith("application/json"):
