@@ -12,4 +12,4 @@ requests>=2.31.0
 
 web3>=6.0.0
 eth-account>=0.9.0
-python-solcx>=0.14.0
+py-solc-x>=1.1.0
