@@ -2,31 +2,41 @@
 
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Shield, Gauge, CheckCircle } from "lucide-react"
+import { Zap, Shield, Gauge, CheckCircle, Code, Rocket, Cpu, Database } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function FeatureCards() {
   const features = [
     {
-      title: "Compilation PoW",
-      desc: "Compiler generates proof during build for authenticity.",
       icon: Zap,
+      title: "Easy to Learn",
+      desc: "Simple syntax that's easy to understand and write.",
     },
     {
-      title: "Execution Integrity",
-      desc: "Verify program behavior matches intended logic.",
+      icon: Code,
+      title: "Multi-Language Output",
+      desc: "Write once, get code in Solidity, Rust, Cairo, and more.",
+    },
+    {
       icon: Shield,
+      title: "Built-in Verification",
+      desc: "Every program comes with proof of execution for trust.",
     },
     {
-      title: "Avalanche Speed",
-      desc: "Optimized for Avalanche's sub-second finality.",
-      icon: Gauge,
+      icon: Rocket,
+      title: "Fast Development",
+      desc: "Build and deploy faster with simplified coding.",
     },
     {
-      title: "Network Native",
-      desc: "Built exclusively for Avalanche ecosystem.",
-      icon: CheckCircle,
+      icon: Cpu,
+      title: "Cross-Platform",
+      desc: "Deploy to multiple blockchains from the same code.",
+    },
+    {
+      icon: Database,
+      title: "Smart Contracts",
+      desc: "Create and deploy smart contracts with ease.",
     },
   ]
 
@@ -61,11 +71,12 @@ export default function FeatureCards() {
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
             Built for verification
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
-            Built exclusively for Avalanche
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Built for simplicity and power
           </h2>
-          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
-            Compilation-time PoW optimized for Avalanche's high-speed, low-cost network architecture.
+          <p className="mx-auto mt-4 max-w-[70ch] text-lg text-neutral-600">
+            ava makes programming accessible to everyone. Write simple code that automatically converts 
+            to multiple languages with built-in verification for trust and reliability.
           </p>
         </div>
         <motion.div

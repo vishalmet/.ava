@@ -230,10 +230,10 @@ export default function ExplorerPage() {
               backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
             }}
           >
-            Avalanche Explorer
+            .ava Explorer
           </Badge>
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-neutral-900 to-neutral-700 bg-clip-text text-transparent">
-            Avalanche Block Explorer
+            .ava Block Explorer
           </h1>
           <p className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600">
             Search and explore blocks, transactions, and addresses on the Avalanche network.

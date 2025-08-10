@@ -94,7 +94,7 @@ export default function Hero() {
             className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm"
           >
             <Sparkles className="h-3.5 w-3.5 text-rose-500" />
-            Exclusive Language 
+            Exclusive Programming Language for<strong>Avalanche</strong>
           </motion.div>
 
           <motion.h1 variants={item} className="mt-5 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
@@ -104,13 +104,13 @@ export default function Hero() {
                 backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
               }}
             >
-              Build exclusively for Avalanche
+              Write simple code
             </span>{" "}
-            with verifiable Proof of Execution.
+            that runs everywhere with proof.
           </motion.h1>
 
           <motion.p variants={item} className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600 md:text-xl">
-            Write programs in {brand.name} designed exclusively for Avalanche. Compilation generates Proof of Execution for authenticity, leveraging Avalanche's speed and low fees for optimal performance.
+            {brand.name} is a simple programming language that makes coding easier. Write once, and your code automatically converts to other languages like Solidity, Rust, and Cairo. Every program comes with built-in proof of execution for trust and verification.
           </motion.p>
 
           <motion.div variants={item} className="mt-7 flex flex-wrap items-center justify-center gap-4">
@@ -137,10 +137,10 @@ export default function Hero() {
 
           <motion.div variants={item} className="mt-6 flex items-center justify-center gap-2">
             <Badge variant="secondary" className="border-orange-200 bg-orange-50 text-rose-700">
-              Avalanche-native
+              Easy to learn
             </Badge>
             <Badge variant="secondary" className="border-rose-200 bg-rose-50 text-rose-700">
-              High-performance
+              Multi-language output
             </Badge>
           </motion.div>
 
@@ -158,8 +158,8 @@ export default function Hero() {
             />
             <div className="p-4 sm:p-6">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DemoCard title="ava Program" />
-                <DemoCard title="PoW Generated" tint="orange" />
+                <DemoCard title="Simple .ava Code" />
+                <DemoCard title="Multiple Languages" tint="orange" />
               </div>
             </div>
           </motion.div>
@@ -176,7 +176,7 @@ function DemoCard({ title, tint = "rose" }: { title: string; tint?: "rose" | "or
       <div className={`mb-3 h-10 w-full rounded-md bg-gradient-to-r ${bar}`} />
       <div className="h-24 rounded-lg bg-neutral-50 ring-1 ring-orange-100" />
       <div className="mt-3 text-sm font-medium text-neutral-800">{title}</div>
-      <p className="text-xs text-neutral-500">Optimized for Avalanche's high-speed, low-cost network.</p>
+      <p className="text-xs text-neutral-500">Write simple code that automatically converts to multiple programming languages.</p>
     </div>
   )
 }

@@ -60,8 +60,8 @@ export default function ConverterCta() {
               in action
             </h2>
             <p className="mx-auto max-w-[65ch] text-lg text-neutral-600">
-              Experience how .ava code converts to Solidity, Cairo, and Rust while maintaining 
-              Proof of Execution integrity for Avalanche deployment.
+              Write simple .ava code and watch it instantly convert to Solidity, Cairo, and Rust. 
+              See how your code transforms while keeping all the logic and verification intact.
             </p>
           </motion.div>
 
@@ -84,7 +84,7 @@ export default function ConverterCta() {
                   <h3 className="font-semibold text-lg mb-2">Interactive Conversion</h3>
                   <p className="text-neutral-600">
                     Write .ava code and instantly see how it translates to your target language 
-                    with preserved logic and verification properties.
+                    with all the logic and verification properties preserved.
                   </p>
                 </div>
               </div>
@@ -101,8 +101,8 @@ export default function ConverterCta() {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Real-time Preview</h3>
                   <p className="text-neutral-600">
-                    See live examples of how Proof of Execution maintains authenticity 
-                    across Solidity, Cairo, and Rust implementations.
+                    See live examples of how your code maintains its structure and functionality 
+                    across different programming languages.
                   </p>
                 </div>
               </div>
@@ -119,8 +119,8 @@ export default function ConverterCta() {
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Download & Deploy</h3>
                   <p className="text-neutral-600">
-                    Export converted code with proper file extensions, ready for 
-                    deployment on Avalanche with full verification support.
+                    Export your converted code with proper file extensions, ready for 
+                    deployment with full verification support.
                   </p>
                 </div>
               </div>
@@ -149,7 +149,7 @@ export default function ConverterCta() {
                     </div>
                     <h3 className="text-xl font-bold mb-2">Try the Converter</h3>
                     <p className="text-neutral-600 text-sm">
-                      Experience seamless code conversion with maintained verification
+                      Experience seamless code conversion with maintained functionality
                     </p>
                   </div>
 
