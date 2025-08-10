@@ -139,7 +139,7 @@ def deploy_contract_from_source(
     except Exception as e:
         raise RuntimeError(
             f"Failed to connect to RPC at {rpc_url}: {e}. "
-            f"Use a reliable endpoint (e.g., Ankr `https://rpc.ankr.com/eth_sepolia` or Infura/Alchemy with API key)."
+            f"Use a reliable endpoint (e.g., Ankr `https://api.avax-test.network/ext/bc/C/rpc` or Infura/Alchemy with API key)."
         ) from e
 
     # Normalize private key (allow without 0x)

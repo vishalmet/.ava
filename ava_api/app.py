@@ -665,8 +665,8 @@ def api_convert_project_zip() -> Response:
         return _json_error(f"Project ZIP generation failed: {e}", 500)
 
 
-# Default RPC when none is provided by the client
-DEFAULT_EVM_RPC = "https://eth-sepolia.public.blastapi.io"
+# Default RPC when none is provided by the client (Avalanche Fuji testnet)
+DEFAULT_EVM_RPC = "https://api.avax-test.network/ext/bc/C/rpc"
 
 
 @app.post('/deploy-contract')

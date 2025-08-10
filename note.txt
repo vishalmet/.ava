@@ -77,8 +77,7 @@ result = deploy_contract_from_source(
 
 
 
-[ava] » deploy("asd.ava", "af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "gsk_dQZTDLBuskjxOVYnpPfCWGdyb3FYrhe9nYaDSg6DS4wDKmaWNan 
-R")
+[ava] » deploy("asd.ava", "af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "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")
 
 
 
