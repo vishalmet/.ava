@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Download, Sparkles, Monitor, Code, Zap, Shield, Rocket, Cpu, Database, Network, Layers, TrendingUp } from "lucide-react"
+import { Download, Sparkles, Monitor } from "lucide-react"
 import Orbs from "./orbs"
 import { brand } from "@/lib/brand"
 
@@ -46,19 +46,6 @@ export default function Hero() {
     show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 70 } },
   }
 
-  // Floating icon animations
-  const floatingIcons = [
-    { icon: Code, delay: 0, x: -20, y: 10, size: 16, color: "text-blue-500" },
-    { icon: Zap, delay: 0.5, x: 15, y: -15, size: 18, color: "text-yellow-500" },
-    { icon: Shield, delay: 1, x: -25, y: 20, size: 14, color: "text-green-500" },
-    { icon: Rocket, delay: 1.5, x: 20, y: 25, size: 16, color: "text-purple-500" },
-    { icon: Cpu, delay: 2, x: -30, y: -10, size: 15, color: "text-indigo-500" },
-    { icon: Database, delay: 2.5, x: 25, y: 15, size: 17, color: "text-cyan-500" },
-    { icon: Network, delay: 3, x: -15, y: 30, size: 16, color: "text-orange-500" },
-    { icon: Layers, delay: 3.5, x: 30, y: -20, size: 14, color: "text-pink-500" },
-    { icon: TrendingUp, delay: 4, x: -35, y: 5, size: 15, color: "text-emerald-500" },
-  ]
-
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 -z-10">
@@ -86,142 +73,6 @@ export default function Hero() {
           delay={0.3}
         />
       </div>
-
-      {/* Left Side Floating Icons */}
-      <div className="absolute left-8 top-1/4 hidden lg:block">
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative"
-        >
-          {floatingIcons.slice(0, 5).map((item, index) => (
-            <motion.div
-              key={index}
-              className={`absolute ${item.color} opacity-60`}
-              style={{
-                left: `${item.x}px`,
-                top: `${item.y}px`,
-              }}
-              animate={{
-                y: [0, -10, 0],
-                rotate: [0, 5, -5, 0],
-              }}
-              transition={{
-                duration: 3 + index * 0.5,
-                delay: item.delay,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <item.icon size={item.size} />
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-
-      {/* Right Side Floating Icons */}
-      <div className="absolute right-8 top-1/4 hidden lg:block">
-        <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="relative"
-        >
-          {floatingIcons.slice(4, 9).map((item, index) => (
-            <motion.div
-              key={index + 4}
-              className={`absolute ${item.color} opacity-60`}
-              style={{
-                left: `${item.x}px`,
-                top: `${item.y}px`,
-              }}
-              animate={{
-                y: [0, 10, 0],
-                rotate: [0, -5, 5, 0],
-              }}
-              transition={{
-                duration: 3 + index * 0.5,
-                delay: item.delay,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-            >
-              <item.icon size={item.size} />
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-
-      {/* Left Side Tech Stack */}
-      <motion.div
-        initial={{ opacity: 0, x: -100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1, delay: 0.6 }}
-        className="absolute left-4 top-1/2 hidden xl:block"
-      >
-        <div className="space-y-4">
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="flex items-center gap-2 text-xs text-neutral-500 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full border shadow-sm"
-          >
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            Solidity
-          </motion.div>
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, delay: 0.5, repeat: Infinity, ease: "easeInOut" }}
-            className="flex items-center gap-2 text-xs text-neutral-500 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full border shadow-sm"
-          >
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            Cairo
-          </motion.div>
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, delay: 1, repeat: Infinity, ease: "easeInOut" }}
-            className="flex items-center gap-2 text-xs text-neutral-500 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-full border shadow-sm"
-          >
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
-            Rust
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* Right Side Stats */}
-      <motion.div
-        initial={{ opacity: 0, x: 100 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1, delay: 0.8 }}
-        className="absolute right-4 top-1/2 hidden xl:block"
-      >
-        <div className="space-y-4">
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-            className="text-center bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border shadow-sm"
-          >
-            <div className="text-lg font-bold text-rose-600">4500+</div>
-            <div className="text-xs text-neutral-600">TPS</div>
-          </motion.div>
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, delay: 0.5, repeat: Infinity, ease: "easeInOut" }}
-            className="text-center bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border shadow-sm"
-          >
-            <div className="text-lg font-bold text-orange-600">$0.01</div>
-            <div className="text-xs text-neutral-600">Avg Fee</div>
-          </motion.div>
-          <motion.div
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 2, delay: 1, repeat: Infinity, ease: "easeInOut" }}
-            className="text-center bg-white/80 backdrop-blur-sm px-4 py-3 rounded-lg border shadow-sm"
-          >
-            <div className="text-lg font-bold text-green-600">2s</div>
-            <div className="text-xs text-neutral-600">Finality</div>
-          </motion.div>
-        </div>
-      </motion.div>
 
       <div className="container px-4 py-14 md:py-20">
         <motion.div variants={container} initial="hidden" animate="show" className="mx-auto max-w-3xl text-center">
