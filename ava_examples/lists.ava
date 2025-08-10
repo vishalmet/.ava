@@ -1,0 +1,36 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+# Create lists
+var numbers = [1, 2, 3, 4, 5]
+var fruits = ["apple", "banana", "orange"]
+var mixed = [1, "hello", true, [1, 2, 3]]
+
+show("Original lists:")
+show(numbers)
+show(fruits)
+show(mixed)
+
+# List operations
+show("Adding elements:")
+add(numbers, 6)
+show(numbers)
+
+show("Extending lists:")
+extend(numbers, [7, 8, 9])
+show(numbers)
+
+show("Popping elements:")
+var popped = pop(numbers)
+show("Popped: " + str(popped))
+show("Remaining: " + str(numbers))
+
+show("List length:")
+show("Length of numbers: " + str(len(numbers)))
+show("Length of fruits: " + str(len(fruits)))
+
+show("Accessing elements:")
+show("First fruit: " + fruits[0])
+show("Last fruit: " + fruits[len(fruits) - 1])
+
+show("Nested list access:")
+show("Nested element: " + str(mixed[3][1]))

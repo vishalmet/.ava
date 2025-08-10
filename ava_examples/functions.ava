@@ -1,0 +1,35 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+# Simple function
+fun greet(name)
+  return "Hello, " + name + "!"
+end
+
+# Function with parameters
+fun add(a, b)
+  return a + b
+end
+
+# Recursive function (factorial)
+fun factorial(n)
+  if n <= 1 then
+    return 1
+  end
+  return n * factorial(n - 1)
+end
+
+# Function that modifies variables
+fun increment_counter()
+  var global_counter = global_counter + 1
+  return global_counter
+end
+
+# Initialize global variable
+var global_counter = 0
+
+# Test the functions
+show(greet("Ava"))
+show("5 + 3 = " + str(add(5, 3)))
+show("5! = " + str(factorial(5)))
+show("Counter: " + str(increment_counter()))
+show("Counter: " + str(increment_counter()))

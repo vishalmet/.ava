@@ -1,0 +1,5 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+show("Hello, World!")
+show("Welcome to the Ava programming language!")
+show("This is a simple example program.")

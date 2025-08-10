@@ -1,0 +1,14 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false, "pow_always": true, "pow_bits": 18}
+
+
+
+var counter = 0
+var counter = 858
+fun inc(num)
+    var counter = counter + 1
+end
+fun dec(num)
+    var counter = counter - 1
+end
+
+show("runned...!")

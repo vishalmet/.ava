@@ -9,6 +9,8 @@ import re
 import urllib.request
 import urllib.error
 from typing import Any, Dict
+import multiprocessing as mp
+import queue as pyqueue
 
 # Optional rich input (syntax-highlight prompt)
 try:
@@ -89,6 +91,48 @@ def _wrap_lines(text: str, width: int):
       s = s[cut:].lstrip()
     lines.append(s)
   return lines
+
+def _read_file_text(path: str) -> str:
+  # Try a set of common encodings with BOM handling and a final permissive fallback
+  candidate_encodings = [
+    'utf-8',
+    'utf-8-sig',
+    'utf-16',
+    'utf-16-le',
+    'utf-16-be',
+    'latin-1',
+  ]
+  for enc in candidate_encodings:
+    try:
+      with open(path, 'r', encoding=enc) as fh:
+        return fh.read()
+    except UnicodeDecodeError:
+      continue
+    except Exception:
+      # If other IO errors, break so they surface later
+      break
+  # Last resort: replace undecodable bytes to avoid crashing
+  try:
+    with open(path, 'r', encoding='utf-8', errors='replace') as fh:
+      return fh.read()
+  except Exception as e:
+    raise e
+
+def _child_run_program(fn: str, text: str, out_q):
+  try:
+    result, error = basic.run(fn, text)
+    # Convert error to dict if present to ensure picklable
+    if isinstance(result, dict):
+      res_obj = result
+    else:
+      res_obj = {'file': fn, 'error': str(error) if error else None}
+    try:
+      err_obj = basic.error_to_dict(error) if error else None
+    except Exception:
+      err_obj = {'name': 'Error', 'details': str(error)} if error else None
+    out_q.put((res_obj, err_obj))
+  except Exception as e:
+    out_q.put(({'file': fn, 'error': str(e)}, {'name': 'Error', 'details': str(e)}))
 
 def print_panel(title: str, body_text: str, color: str = None):
   # Fallback to ASCII borders and no color when not a TTY to avoid Unicode/ANSI issues
@@ -290,11 +334,35 @@ if __name__ == "__main__":
       if not os.path.isfile(file_path):
         print_panel('Error', f'File not found: {file_path}', color=COLOR['red'])
         sys.exit(1)
-      with open(file_path, 'r', encoding='utf-8') as fh:
-        src = fh.read()
+      src = _read_file_text(file_path)
       src_name = file_path
-    # Execute once
-    result, error = basic.run(src_name, src)
+    # Execute once with timeout guard
+    result, error = None, None
+    timeout_s = float(os.environ.get('AVA_EXEC_TIMEOUT', '15'))
+    out_q = mp.Queue()
+    p = mp.Process(target=_child_run_program, args=(src_name, src, out_q))
+    p.daemon = True
+    p.start()
+    p.join(timeout_s)
+    if p.is_alive():
+      try:
+        p.terminate()
+      except Exception:
+        pass
+      error = {'name': 'Timeout', 'details': f'Execution exceeded {timeout_s}s and was terminated.'}
+      result = {
+        'file': src_name,
+        'elapsed': 0,
+        'trace': {'execution': {'stdout': ''}},
+        'error': error
+      }
+    else:
+      try:
+        result, err_obj = out_q.get_nowait()
+        # normalize error back to simple object; basic.run interface expects error-like or None
+        error = err_obj
+      except Exception:
+        result, error = {'file': src_name, 'error': 'No result from child'}, {'name': 'Error', 'details': 'No result from child'}
     # Minimal output: mirror REPL panels
     show_json = not SESSION_SUPPRESS_JSON
     header = {}

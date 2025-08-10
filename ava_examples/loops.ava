@@ -1,0 +1,20 @@
+# {"pk":"af2c4a3435ba7c4bdb6d8269c00efe49826f35b46c253edeb2ceafae8cedfdc6", "show_json": false}
+
+show("For loop example:")
+for i = 1 to 5 then
+  show("Count: " + str(i))
+end
+
+show("While loop example:")
+var count = 0
+while count < 3 then
+  show("While count: " + str(count))
+  var count = count + 1
+end
+
+show("Nested loops:")
+for i = 1 to 3 then
+  for j = 1 to 2 then
+    show("i=" + str(i) + ", j=" + str(j))
+  end
+end
