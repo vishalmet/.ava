@@ -20,7 +20,7 @@ import Image from "next/image"
 export default function Page() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-  
+
   return (
     <>
       <div className="flex min-h-screen flex-col relative w-full">
@@ -28,7 +28,7 @@ export default function Page() {
         <motion.div
           className="fixed inset-0 z-0 opacity-100"
           style={{
-            backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 0px, #f8fafc 2px, #f8fafc 4px)",
+            backgroundImage: "repeating-linear-gradient(45deg, transparent 0px, #f8fafc 4px, #f8fafc 8px)",
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.3 }}
