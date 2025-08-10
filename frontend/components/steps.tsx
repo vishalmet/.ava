@@ -1,15 +1,15 @@
 "use client"
 
-import { ArrowRight, Code, Zap, Shield, FileCode2 } from "lucide-react"
+import { ArrowRight, Code, Zap, Shield, FileCode2, CheckCircle, Rocket } from "lucide-react"
 import { motion } from "framer-motion"
 import { brand } from "@/lib/brand"
 
 export default function Steps() {
   const steps = [
-    { title: "Write", desc: "Write your program in ava.", icon: Code },
-    { title: "Compile + PoW", desc: "Compilation generates authenticity proof.", icon: Zap },
-    { title: "Verify", desc: "Anyone can verify code integrity.", icon: Shield },
-    { title: "Deploy", desc: "Launch on Avalanche mainnet/testnet.", icon: FileCode2 },
+    { title: "Write", desc: "Code in simple .ava syntax.", icon: Code },
+    { title: "Convert", desc: "Auto-convert to other languages.", icon: FileCode2 },
+    { title: "Verify", desc: "Get execution proof.", icon: CheckCircle },
+    { title: "Deploy", desc: "Launch on any blockchain.", icon: Rocket },
   ]
 
   return (
@@ -19,8 +19,10 @@ export default function Steps() {
           <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
             How it works
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">From code to Avalanche deployment in four steps</h2>
-          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">Compilation-time PoW ensures authenticity optimized for Avalanche's ecosystem.</p>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">From code to deployment in four simple steps</h2>
+          <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
+            Write simple code that automatically converts to multiple languages with built-in verification.
+          </p>
         </div>
         <div className="mt-8 grid items-stretch gap-6 lg:grid-cols-4">
           {steps.map((s, i) => (

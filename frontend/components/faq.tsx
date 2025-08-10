@@ -42,9 +42,11 @@ export default function Faq() {
             <div className="inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1 text-xs text-neutral-700 shadow-sm">
               FAQ
             </div>
-            <h3 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">Questions, answered</h3>
-            <p className="mx-auto mt-2 max-w-[65ch] text-neutral-600">
-              Everything you need to know about ava programming, Proof of Execution, and Avalanche deployment.
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Frequently Asked Questions
+            </h2>
+            <p className="mx-auto mt-2 max-w-[70ch] text-neutral-600">
+              Everything you need to know about ava programming, code conversion, and deployment.
             </p>
           </motion.div>
 
@@ -55,49 +57,59 @@ export default function Faq() {
             viewport={{ once: true, margin: "-50px" }}
           >
             <Accordion type="single" collapsible className="mt-8">
-              <motion.div variants={item}>
-                <AccordionItem value="item-1" className="border-b px-6 border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
-                  <AccordionTrigger className="hover:no-underline text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
-                    How does compilation-time Proof of Execution work?
-                  </AccordionTrigger>
-                  <AccordionContent className=" text-neutral-600 leading-relaxed text-base">
-                    During compilation, the ava compiler performs a computational challenge (hash puzzle or verifiable computation) that produces a proof artifact. This proof is recorded with your program's hash, ensuring authenticity and preventing spam deployments.
-                  </AccordionContent>
-                </AccordionItem>
-              </motion.div>
-              
-              <motion.div variants={item}>
-                <AccordionItem value="item-2" className="border-b px-6 border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
-                  <AccordionTrigger className="hover:no-underline text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
-                    Why is ava exclusive to Avalanche?
-                  </AccordionTrigger>
-                  <AccordionContent className=" text-neutral-600 leading-relaxed text-base">
-                    ava is designed specifically for Avalanche's unique architecture, leveraging its sub-second finality, low fees, and high throughput. This exclusive focus allows for optimal performance and native integration with Avalanche's ecosystem.
-                  </AccordionContent>
-                </AccordionItem>
-              </motion.div>
-              
-              <motion.div variants={item}>
-                <AccordionItem value="item-3" className="border-b px-6 border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
-                  <AccordionTrigger className="hover:no-underline text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
-                    How does verification prevent fake deployments?
-                  </AccordionTrigger>
-                  <AccordionContent className=" text-neutral-600 leading-relaxed text-base">
-                    When code runs or is inspected later, nodes can verify that the code wasn't altered after compilation, was built using the official ava toolchain, and required computational work was done. This prevents spam and ensures authenticity.
-                  </AccordionContent>
-                </AccordionItem>
-              </motion.div>
-              
-              <motion.div variants={item}>
-                <AccordionItem value="item-4" className="border-b px-6 border-neutral-200 data-[state=open]:bg-rose-50/30 transition-colors duration-200">
-                  <AccordionTrigger className="hover:no-underline text-left font-semibold text-lg data-[state=open]:text-rose-600 transition-colors">
-                    How does ava leverage Avalanche's performance?
-                  </AccordionTrigger>
-                  <AccordionContent className=" text-neutral-600 leading-relaxed text-base">
-                    ava programs are optimized for Avalanche's consensus mechanism and network architecture. This means faster execution, lower gas costs, and seamless integration with Avalanche's subnets and native features.
-                  </AccordionContent>
-                </AccordionItem>
-              </motion.div>
+              <AccordionItem value="item-1">
+                <AccordionTrigger>What is ava programming language?</AccordionTrigger>
+                <AccordionContent>
+                  ava is a simple programming language designed to make coding easier and more accessible. 
+                  You write code once in ava, and it automatically converts to other languages like Solidity, 
+                  Rust, and Cairo. Every program includes built-in proof of execution for trust and verification.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-2">
+                <AccordionTrigger>How does code conversion work?</AccordionTrigger>
+                <AccordionContent>
+                  When you write code in ava, our compiler automatically translates it to your target language 
+                  while preserving all the logic and functionality. This means you can write once and deploy 
+                  to multiple blockchains without rewriting your code.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-3">
+                <AccordionTrigger>What is proof of execution?</AccordionTrigger>
+                <AccordionContent>
+                  Proof of execution is a mathematical guarantee that your code runs exactly as intended. 
+                  When you compile ava code, it generates a proof that anyone can verify, ensuring your 
+                  program behaves correctly and can be trusted.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-4">
+                <AccordionTrigger>Why should I use ava?</AccordionTrigger>
+                <AccordionContent>
+                  ava makes programming accessible to everyone. You get simple syntax that's easy to learn, 
+                  automatic conversion to multiple languages, built-in verification, and the ability to deploy 
+                  anywhere. It's perfect for beginners and experienced developers alike.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-5">
+                <AccordionTrigger>Which languages does ava convert to?</AccordionTrigger>
+                <AccordionContent>
+                  ava currently converts to Solidity (for Ethereum and Avalanche), Rust (for Solana and other 
+                  Rust-based chains), and Cairo (for StarkNet). We're constantly adding support for more 
+                  programming languages and blockchains.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="item-6">
+                <AccordionTrigger>How does ava ensure code quality?</AccordionTrigger>
+                <AccordionContent>
+                  ava uses advanced compilation techniques to ensure your converted code maintains the same 
+                  logic, security, and performance characteristics. The built-in proof of execution provides 
+                  mathematical certainty that your code works as intended.
+                </AccordionContent>
+              </AccordionItem>
             </Accordion>
           </motion.div>
         </div>

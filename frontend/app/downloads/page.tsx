@@ -391,11 +391,12 @@ export default function DownloadsPage() {
             <Download className="h-3 w-3 mr-1" />
             Downloads
           </Badge>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl text-neutral-900 dark:text-white mb-4">
-            Download .ava for your platform
+          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+            Get the <span className="text-rose-600">ava</span> compiler
           </h1>
-          <p className="mx-auto max-w-[65ch] text-lg text-neutral-600 dark:text-neutral-400">
-            Get the .ava compiler and toolchain for Windows, macOS, and Linux. Start building verifiable programs for Avalanche.
+          <p className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600 md:text-xl">
+            Download the ava programming language compiler and start writing simple code that converts 
+            to multiple languages. Available for Windows, macOS, and Linux.
           </p>
         </motion.div>
 

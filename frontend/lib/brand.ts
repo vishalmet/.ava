@@ -1,7 +1,7 @@
 export const brand = {
   name: "ava",
-  tagline: "Avalanche-Native Programming Language",
-  description: "Write programs in ava exclusively for Avalanche. Generate Proof of Execution during compilation, ensure authenticity, and deploy with verifiable trust on Avalanche's high-performance network.",
+  tagline: "Simple Programming Language for Everyone",
+  description: "Write simple code in ava that automatically converts to multiple programming languages. Generate proof of execution during compilation, ensure authenticity, and deploy with verifiable trust on any supported network.",
   colors: {
     // Avalanche-inspired warm, bright palette
     primaryFrom: "#e84142", // avalanche red

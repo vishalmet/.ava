@@ -316,7 +316,16 @@ if __name__ == "__main__":
   SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
   # Allow disabling spinner globally via CLI or env
   NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
+if __name__ == "__main__":
+  ARGS = sys.argv[1:]
+  SESSION_SUPPRESS_JSON = ('--no-json' in ARGS)
+  # Allow disabling spinner globally via CLI or env
+  NO_SPINNER = ('--no-spinner' in ARGS) or (os.environ.get('AVA_NO_SPINNER', '').strip() not in ('', '0', 'false', 'False'))
 
+  # Early --help support for shell flags
+  if '--help' in ARGS or '-h' in ARGS:
+    print_panel('Usage', _usage_text(), color=COLOR['blue'])
+    sys.exit(0)
   # Early --help support for shell flags
   if '--help' in ARGS or '-h' in ARGS:
     print_panel('Usage', _usage_text(), color=COLOR['blue'])
@@ -394,14 +403,6 @@ if __name__ == "__main__":
       if hdr_parts:
         summary.append("config  : " + ", ".join(hdr_parts))
     print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
-    
-    # ALWAYS POST to API (regardless of JSON display settings) and show response
-    api_resp = _post_result_to_api(result or {}, src_name)
-    print_panel('Store API Response', api_resp, color=COLOR['green'])
-    # Store to MongoDB
-    mongo_status = _store_api_result_mongo(api_resp, src_name)
-    print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
-    
     pow_obj = None
     if isinstance(result, dict):
       pow_obj = result.get('pow') or result.get('trace', {}).get('execution', {}).get('pow')
@@ -424,15 +425,12 @@ if __name__ == "__main__":
         print_panel('Proof-of-Work ⛏️', "\n".join(body), color=COLOR['magenta'])
       except Exception:
         pass
-    
-    # Only show JSON panel if not suppressed
     if show_json:
       try:
         json_text = json.dumps(result, indent=2, ensure_ascii=False)
       except Exception:
         json_text = str(result)
       print_panel('JSON', json_text, color=COLOR['cyan'])
-    
     prog_out = ''
     if isinstance(result, dict):
       prog_out = result.get('stdout') or result.get('trace', {}).get('execution', {}).get('stdout') or ''
@@ -571,7 +569,42 @@ if __name__ == "__main__":
           break
       if text.strip() == "":
           continue
+if __name__ == "__main__":
+  while True:
+      try:
+          if PTK_AVAILABLE:
+              text = SESSION.prompt(PROMPT_FT)
+          else:
+              text = input(PROMPT)
+      except EOFError:
+          print()
+          break
+      if text.strip() == "":
+          continue
 
+      # Per-command flags
+      line_suppress_json = False
+      stripped = text.strip()
+      if stripped == '--no-json':
+          SESSION_SUPPRESS_JSON = True
+          print(f" {COLOR['yellow']}JSON output disabled for this session{COLOR['reset']}")
+          continue
+      if stripped == '--json':
+          SESSION_SUPPRESS_JSON = False
+          print(f" {COLOR['green']}JSON output enabled for this session{COLOR['reset']}")
+          continue
+      # Convenience commands without parentheses
+      if stripped in ('clear', 'clr', 'exit', 'help'):
+          text = stripped + '()'
+          stripped = text
+      if stripped.startswith('--no-json'):
+          # apply only for this execution
+          line_suppress_json = True
+          # remove the flag token
+          parts = stripped.split(None, 1)
+          text = parts[1] if len(parts) > 1 else ''
+          if not text:
+              continue
       # Per-command flags
       line_suppress_json = False
       stripped = text.strip()
@@ -644,7 +677,64 @@ if __name__ == "__main__":
                   sys.stderr.flush()
               except Exception:
                   pass
+      # Spinner while running
+      class _Spinner:
+          def __init__(self):
+              self._stop = threading.Event()
+              self._t = None
+              self._enabled = (not NO_SPINNER) and bool(getattr(sys.stderr, 'isatty', lambda: False)()) and bool(getattr(sys.stdout, 'isatty', lambda: False)())
+              self._last_len = 0
+          def start(self, label: str):
+              if not self._enabled:
+                  return
+              # Modern braille spinner with subtle color cycling
+              frames = ['⠋ ','⠙ ','⠹ ','⠸ ','⠼ ','⠴ ','⠦ ','⠧ ','⠇ ','⠏ ']
+              colors = [
+                  COLOR.get('cyan', ''),
+                  COLOR.get('magenta', ''),
+                  COLOR.get('blue', ''),
+                  COLOR.get('green', ''),
+                  COLOR.get('yellow', ''),
+              ]
+              reset = COLOR.get('reset', '')
+              def run():
+                  i = 0
+                  while not self._stop.is_set():
+                      frame = frames[i % len(frames)]
+                      col = colors[i % len(colors)]
+                      out = f"{col}{label} {frame}{reset}"
+                      try:
+                          pad = max(0, self._last_len - len(out))
+                          sys.stderr.write("\r" + out + (" " * pad))
+                          sys.stderr.flush()
+                          self._last_len = len(out)
+                      except Exception:
+                          break
+                      i += 1
+                      time.sleep(0.08)
+              self._t = threading.Thread(target=run, daemon=True)
+              self._t.start()
+          def stop(self):
+              if not self._enabled:
+                  return
+              self._stop.set()
+              if self._t:
+                  self._t.join()
+              try:
+                  sys.stderr.write("\r" + (" " * self._last_len) + "\r")
+                  sys.stderr.flush()
+              except Exception:
+                  pass
 
+      spinner = _Spinner()
+      label = 'Running'
+      if 'pow_mine' in stripped:
+          label = 'Mining'
+      spinner.start(label)
+      try:
+          result, error = basic.run('<stdin>', text)
+      finally:
+          spinner.stop()
       spinner = _Spinner()
       label = 'Running'
       if 'pow_mine' in stripped:
@@ -657,7 +747,20 @@ if __name__ == "__main__":
 
       # Update known symbols for next input highlighting
       _refresh_known_symbols()
+      # Update known symbols for next input highlighting
+      _refresh_known_symbols()
 
+      # Header flags
+      show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
+      header = {}
+      if isinstance(result, dict):
+          header = result.get('trace', {}).get('execution', {}).get('header', {}) or {}
+          if isinstance(header, dict) and 'show_json' in header:
+              # Header can only further hide JSON; CLI --no-json overrides header True
+              try:
+                  show_json = show_json and bool(header.get('show_json'))
+              except Exception:
+                  pass
       # Header flags
       show_json = not (SESSION_SUPPRESS_JSON or line_suppress_json)
       header = {}
@@ -693,12 +796,6 @@ if __name__ == "__main__":
           if hdr_parts:
               summary.append("config  : " + ", ".join(hdr_parts))
       print_panel('Execution Summary', "\n".join(summary), color=COLOR['cyan'])
-      # Always POST to API and show response
-      api_resp = _post_result_to_api(result or {}, '<stdin>')
-      print_panel('Store API Response', api_resp, color=COLOR['green'])
-      # Store to MongoDB
-      mongo_status = _store_api_result_mongo(api_resp, '<stdin>')
-      print_panel('MongoDB Store', mongo_status, color=COLOR['blue'])
 
       # Proof-of-Work summary (if present)
       pow_obj = None
@@ -724,7 +821,7 @@ if __name__ == "__main__":
           except Exception:
               pass
           
-          # JSON payload (only if not suppressed)
+          # JSON payload (optional)
       if show_json:
           try:
               json_text = json.dumps(result, indent=2, ensure_ascii=False)
@@ -732,8 +829,8 @@ if __name__ == "__main__":
               json_text = str(result)
           print_panel('JSON', json_text, color=COLOR['cyan'])
           
-      # Final Value (only if not suppressed)
-      if show_json and isinstance(result, dict) and 'final_value' in result:
+      # Final Value
+      if isinstance(result, dict) and 'final_value' in result:
           fv = result.get('final_value')
           try:
               fv_text = json.dumps(fv, ensure_ascii=False)
@@ -758,7 +855,29 @@ if __name__ == "__main__":
               print_panel('Stdout', prog_out, color=COLOR['white'])
       else:
           print_panel('Stdout', '<empty>', color=COLOR['white'])
+      if prog_out:
+          if _looks_like_box_art(prog_out):
+              # Print raw if content contains its own frame
+              section('Stdout', color=COLOR['white'])
+              print(prog_out, end='' if prog_out.endswith('\n') else '\n')
+          else:
+              print_panel('Stdout', prog_out, color=COLOR['white'])
+      else:
+          print_panel('Stdout', '<empty>', color=COLOR['white'])
 
+      # Error details (if any)
+      if error:
+          err_txt = None
+          try:
+              err_txt = error.as_string()
+          except Exception:
+              try:
+                  err_txt = json.dumps({'error': basic.error_to_dict(error)}, indent=2)
+              except Exception:
+                  err_txt = str(error)
+          print_panel('Error', err_txt, color=COLOR['red'])
+      # footer spacer
+      print()
       # Error details (if any)
       if error:
           err_txt = None

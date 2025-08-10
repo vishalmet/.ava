@@ -47,21 +47,12 @@ export default function ExplorerCta() {
               <Search className="h-3 w-3 mr-1" />
               Explore Now
             </Badge>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4">
-              Explore{" "}
-              <span
-                className="bg-clip-text text-transparent"
-                style={{
-                  backgroundImage: `linear-gradient(90deg, ${brand.colors.primaryFrom}, ${brand.colors.primaryTo})`,
-                }}
-              >
-                .ava
-              </span>{" "}
-              blockchain data
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              Explore your deployed code
             </h2>
-            <p className="mx-auto max-w-[65ch] text-lg text-neutral-600">
-              Dive deep into Avalanche's blockchain with real-time data, transaction history, 
-              and comprehensive analytics built for .ava developers.
+            <p className="mx-auto mt-4 max-w-[65ch] text-lg text-neutral-600">
+              Track all your ava programs and see how they perform across different blockchains. 
+              Monitor deployments, verify execution, and analyze performance in real-time.
             </p>
           </motion.div>
 
@@ -99,10 +90,10 @@ export default function ExplorerCta() {
                   <Clock className="h-5 w-5" style={{ color: brand.colors.primaryFrom }} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Real-time Data</h3>
+                  <h3 className="font-semibold text-lg mb-2">Real-time Monitoring</h3>
                   <p className="text-neutral-600">
-                    Monitor live network activity with up-to-date block confirmations, 
-                    transaction throughput, and network health metrics.
+                    Track your deployed programs across multiple blockchains with live updates 
+                    and performance metrics.
                   </p>
                 </div>
               </div>
@@ -117,10 +108,28 @@ export default function ExplorerCta() {
                   <Search className="h-5 w-5" style={{ color: brand.colors.primaryFrom }} />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg mb-2">Advanced Search</h3>
+                  <h3 className="font-semibold text-lg mb-2">Execution Verification</h3>
                   <p className="text-neutral-600">
-                    Search by transaction hash, block number, address, or smart contract 
-                    with powerful filtering and sorting capabilities.
+                    Verify that your code runs exactly as intended with built-in proof of execution 
+                    and blockchain verification.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-4">
+                <div 
+                  className="p-2 rounded-lg flex-shrink-0"
+                  style={{
+                    backgroundColor: `${brand.colors.primaryFrom}15`,
+                  }}
+                >
+                  <Search className="h-5 w-5" style={{ color: brand.colors.primaryFrom }} />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg mb-2">Multi-Chain Support</h3>
+                  <p className="text-neutral-600">
+                    Monitor your programs deployed on different blockchains from a single dashboard, 
+                    with unified analytics and reporting.
                   </p>
                 </div>
               </div>
@@ -147,9 +156,9 @@ export default function ExplorerCta() {
                       <Search className="h-4 w-4" />
                       Real-time Avalanche Explorer
                     </div>
-                    <h3 className="text-xl font-bold mb-2">Explore the Network</h3>
+                    <h3 className="text-xl font-bold mb-2">Open Explorer</h3>
                     <p className="text-neutral-600 text-sm">
-                      Access comprehensive blockchain data with developer-friendly tools
+                      Monitor your deployments and verify execution across all supported blockchains
                     </p>
                   </div>
 

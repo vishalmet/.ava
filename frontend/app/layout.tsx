@@ -4,9 +4,9 @@ import PageLoader from '@/components/page-loader'
 import NavigationLoader from '@/components/navigation-loader'
 
 export const metadata: Metadata = {
-  title: '.ava - Exclusive Programming Language for Avalanche',
-  description: 'Write once, verify everywhere — with built-in Proof of Execution.',
-  keywords: ['dApp', 'Avalanche', 'No-code', 'Smart contracts', 'Blockchain', 'Web3', 'DeFi'],
+  title: '.ava - Simple Programming Language for Everyone',
+  description: 'Write simple code that automatically converts to multiple languages with built-in verification.',
+  keywords: ['Programming Language', 'Code Conversion', 'Smart Contracts', 'Blockchain', 'Web3', 'DeFi', 'Multi-language'],
   authors: [{ name: '.ava Team' }],
   creator: '.ava',
   publisher: '.ava',
@@ -16,8 +16,8 @@ export const metadata: Metadata = {
     apple: '/icon.png',
   },
   openGraph: {
-    title: '.ava - Exclusive Programming Language for Avalanche',
-    description: 'Write once, verify everywhere — with built-in Proof of Execution.',
+    title: '.ava - Simple Programming Language for Everyone',
+    description: 'Write simple code that automatically converts to multiple languages with built-in verification.',
     type: 'website',
     locale: 'en_US',
     images: [
@@ -31,8 +31,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: '.ava - Exclusive Programming Language for Avalanche',
-    description: 'Write once, verify everywhere — with built-in Proof of Execution.',
+    title: '.ava - Simple Programming Language for Everyone',
+    description: 'Write simple code that automatically converts to multiple languages with built-in verification.',
     images: ['/icon.png'],
   },
   robots: {
