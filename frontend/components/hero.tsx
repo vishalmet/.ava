@@ -164,6 +164,157 @@ export default function Hero() {
             </div>
           </motion.div>
         </motion.div>
+
+        {/* Problem Statement & Solution Section */}
+        <motion.div 
+          variants={container}
+          className="mt-16 max-w-6xl mx-auto"
+        >
+          <motion.div 
+            variants={item}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl font-bold text-neutral-900 mb-4">
+              The Smart Contract Challenge
+            </h2>
+            <p className="text-lg text-neutral-600 max-w-3xl mx-auto">
+              Developers face significant barriers when building across multiple blockchains
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            {/* Problem Statement */}
+            <motion.div 
+              variants={item}
+              className="bg-red-50 border border-red-200 rounded-2xl p-8"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-red-900">The Problem</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-red-800">
+                    <strong>Language Fragmentation:</strong> Each blockchain requires learning different smart contract languages (Solidity, Cairo, Rust)
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-red-800">
+                    <strong>Proof of Work Tracking:</strong> No unified way to track and verify execution across different networks
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-red-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-red-800">
+                    <strong>Development Complexity:</strong> Rewriting code for each platform increases time and introduces errors
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Solution */}
+            <motion.div 
+              variants={item}
+              className="bg-green-50 border border-green-200 rounded-2xl p-8"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-green-900">The Solution</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-green-800">
+                    <strong>Unified Language:</strong> Write once in .ava and convert to Solidity, Cairo, or Rust based on your target blockchain
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-green-800">
+                    <strong>Built-in Proof of Work:</strong> Every operation generates verifiable proof of execution for complete transparency
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-green-800">
+                    <strong>Cross-Chain Deployment:</strong> Deploy the same logic to multiple blockchains without rewriting or learning new languages
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-green-800">
+                    <strong>Python Inside AVA:</strong> Execute AI models, data analysis, and custom logic directly within your smart contracts for advanced functionality
+                  </p>
+                </div>
+                
+                <div className="flex items-start gap-3">
+                  <div className="w-2 h-2 bg-green-400 rounded-full mt-2 flex-shrink-0"></div>
+                  <p className="text-green-800">
+                    <strong>Built-in Blockchain Tools:</strong> Integrated features for NFT minting, efficient on-chain storage, and comprehensive transaction scanning
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Video Section */}
+        <motion.div 
+          variants={container}
+          className="mt-20 max-w-4xl mx-auto text-center"
+        >
+          <motion.div 
+            variants={item}
+            className="mb-8"
+          >
+            <h2 className="text-3xl font-bold text-neutral-900 mb-4">
+              See AVA Language in Action
+            </h2>
+            <p className="text-lg text-neutral-600 max-w-2xl mx-auto">
+              Watch how simple .ava code transforms into multiple programming languages with built-in verification
+            </p>
+          </motion.div>
+
+          <motion.div 
+            variants={item}
+            className="relative"
+          >
+            <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-neutral-200 bg-neutral-50">
+              <iframe 
+                width="100%" 
+                height="400" 
+                src="https://www.youtube.com/embed/ohC7_BFcmbs?si=_dff6N4REtY57kI_" 
+                title="AVA Language Demo" 
+                frameBorder="0" 
+                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                referrerPolicy="strict-origin-when-cross-origin" 
+                allowFullScreen
+                className="w-full h-[400px] md:h-[500px] lg:h-[600px]"
+              ></iframe>
+            </div>
+            
+            {/* Decorative elements */}
+            <div className="absolute -top-4 -left-4 w-8 h-8 bg-gradient-to-br from-rose-400 to-orange-400 rounded-full opacity-20"></div>
+            <div className="absolute -bottom-4 -right-4 w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full opacity-20"></div>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   )
